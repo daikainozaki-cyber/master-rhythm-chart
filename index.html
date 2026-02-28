@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Rhythm Chart</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header>
+    <input type="text" id="title-input" placeholder="Title" class="title-input">
+    <div class="controls">
+      <label>BPM <input type="number" id="tempo-input" min="40" max="300" value="120" class="tempo-input"></label>
+      <button id="btn-play" class="btn-play">&#9654; Play</button>
+      <button id="btn-clear" class="btn-clear">Clear</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="chart-grid" class="chart-grid"></div>
+  </main>
+
+  <footer>
+    <div class="chord-input-area">
+      <input type="text" id="chord-input"
+             placeholder="Chord (e.g. C7, Dm7, G7/B)"
+             class="chord-input"
+             autocomplete="off" spellcheck="false" autocorrect="off">
+      <button id="chord-submit" class="btn-submit">Enter</button>
+    </div>
+    <div class="shortcuts">
+      <kbd>&#8592;</kbd><kbd>&#8594;</kbd> measure
+      <kbd>&#8593;</kbd><kbd>&#8595;</kbd> line
+      <kbd>Tab</kbd> beat
+      <kbd>Space</kbd> play/stop
+      <kbd>A</kbd>-<kbd>G</kbd> input
+      <kbd>Del</kbd> delete
+    </div>
+  </footer>
+
+  <script src="data.js"></script>
+  <script src="theory.js"></script>
+  <script src="audio.js"></script>
+  <script src="chart.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>

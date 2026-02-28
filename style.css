@@ -1,0 +1,333 @@
+/* ========================================
+   RHYTHM CHART APP — Style
+   CSS variables for theme swapping (Phase 2: themes/xxx.css)
+   ======================================== */
+
+:root {
+  --bg: #1a1a2e;
+  --surface: #16213e;
+  --surface-hover: #1c2a4a;
+  --text: #e0e0e0;
+  --text-muted: #888;
+  --accent: #4a9eff;
+  --accent-dim: rgba(74, 158, 255, 0.15);
+  --border: #333;
+  --border-light: #444;
+  --error: #ef5350;
+  --chart-cursor: var(--accent);
+  --chart-cursor-bg: rgba(74, 158, 255, 0.2);
+  --chart-playing: #7cb342;
+  --chart-playing-bg: rgba(124, 179, 66, 0.25);
+  --chord-text: #fff;
+  --radius: 6px;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ======== HEADER ======== */
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+.title-input {
+  font-size: 1.1rem;
+  font-weight: 600;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 6px 10px;
+  flex: 1;
+  min-width: 120px;
+}
+
+.title-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  background: var(--bg);
+}
+
+.title-input::placeholder {
+  color: var(--text-muted);
+}
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.controls label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.tempo-input {
+  width: 60px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  padding: 4px 6px;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.tempo-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn-play,
+.btn-clear {
+  padding: 6px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.btn-play:hover,
+.btn-clear:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+}
+
+.btn-play.playing {
+  background: var(--chart-playing);
+  color: #000;
+  border-color: var(--chart-playing);
+}
+
+/* ======== CHART GRID ======== */
+
+main {
+  flex: 1;
+  padding: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+.chart-grid {
+  width: 100%;
+  max-width: 900px;
+}
+
+.chart-line {
+  display: flex;
+  align-items: stretch;
+  margin-bottom: 2px;
+}
+
+.line-number {
+  width: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.measure {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin: 1px;
+  overflow: hidden;
+  min-height: 48px;
+}
+
+.beat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 2px;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background 0.1s;
+  position: relative;
+  user-select: none;
+}
+
+.beat:last-child {
+  border-right: none;
+}
+
+.beat:hover {
+  background: var(--surface-hover);
+}
+
+/* Chord present */
+.beat.has-chord {
+  color: var(--chord-text);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+/* Cursor highlight */
+.beat.cursor {
+  background: var(--chart-cursor-bg);
+  box-shadow: inset 0 0 0 2px var(--chart-cursor);
+}
+
+/* Playing position */
+.beat.playing {
+  background: var(--chart-playing-bg);
+  box-shadow: inset 0 0 0 2px var(--chart-playing);
+}
+
+/* Beat numbers (1-2-3-4 dots) */
+.beat::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.beat:first-child::after {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ======== CHORD INPUT (Footer) ======== */
+
+footer {
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.chord-input-area {
+  display: flex;
+  gap: 8px;
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.chord-input {
+  flex: 1;
+  padding: 10px 14px;
+  font-size: 1rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.chord-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.chord-input::placeholder {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.chord-input.error {
+  border-color: var(--error);
+  animation: shake 0.3s ease-out;
+}
+
+.btn-submit {
+  padding: 10px 20px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: var(--radius);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.btn-submit:hover {
+  opacity: 0.85;
+}
+
+/* ======== SHORTCUTS HELP ======== */
+
+.shortcuts {
+  text-align: center;
+  padding: 4px 16px 8px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.shortcuts kbd {
+  display: inline-block;
+  padding: 1px 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 0.65rem;
+  margin: 0 1px;
+}
+
+/* ======== ANIMATIONS ======== */
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+/* ======== RESPONSIVE ======== */
+
+@media (max-width: 600px) {
+  header {
+    padding: 8px 10px;
+  }
+
+  .chart-grid {
+    padding: 0;
+  }
+
+  .measure {
+    min-height: 40px;
+  }
+
+  .beat {
+    font-size: 0.75rem;
+    padding: 6px 1px;
+  }
+
+  .line-number {
+    width: 22px;
+    font-size: 0.6rem;
+  }
+}
