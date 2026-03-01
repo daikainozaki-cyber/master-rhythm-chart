@@ -1,8 +1,52 @@
 # リズム譜アプリ - CLAUDE.md
 
-**仮称**: HPS Rhythm Chart（未定）
-**ステータス**: 企画段階 → **着手可能**（64 Pad Explorer V2.17完了）
-**最終更新**: 2026-02-28
+**仮称**: PADDAW（Master Rhythm Chart → PADDAW）
+**ステータス**: Phase 3 完了 + Score View SVG化完了
+**最終更新**: 2026-03-01
+
+---
+
+## PADDAW ビジョン（2026-03-01 壁打ちで確定）
+
+**PADDAWの最終形はオーディオ録音も含む完全なDAW。** 今作っている各アプリ（Master Rhythm Chart, 64 Pad Explorer, 五度圏）はそれぞれPADDAWのモジュール。独立して動くが、最終的に統合される。**モジュールとして作ること自体がPADDAWの設計。**
+
+### 設計思想
+- Abletonと違い、**アレンジメントビュー（マスターリズム譜）でもパッドが使える**
+- 五度圏は「学習の足場」、パッドが「到達点」（習熟後は五度圏不要に）
+- Session View = Sections、Arrangement View = Form → Score View
+- 各機能はパネル（モジュール）としてオン・オフ可能
+
+### パネル構成
+| パネル | 役割 |
+|--------|------|
+| Grid | セクション編集（Session View的） |
+| Score | マスターリズム譜 SVG表示（Arrangement View的） |
+| Pad | ボイシング表示・パッド入力・再生連動点灯 |
+| Circle | 五度圏・ダイアトニック連動・調号→パッド点灯 |
+| Analysis | Ⅱ-V検出・セカンダリードミナント・バークリー式破線 |
+
+### 入力方法
+- キーボード → コード入力・カーソル移動
+- PUSH パッド → ボイシング打鍵→コード自動判定→配置
+- PUSH ジョグ/エンコーダー → 譜面ナビゲーション
+- ピアノロール（Score View上クリック） → キメ打ち込み
+- リアルタイム録音 → キメのタイミング記録
+
+### 書き出し
+- SVG / PNG — 譜面画像
+- .als — Ableton Liveプロジェクト
+- .clvz — Clover Chord System（インポートも）
+- .chs — 64 Pad Explorer
+
+### 実装ロードマップ
+```
+基盤:   #1 ES Module化 → #2 Panel切替 → #3 Panel化
+機能:   #4 五度圏  #5 64Pad  #7 マルチパネル
+分析:   #6 Analysis（#4+#5の後）
+制作:   #8 キメ入力（#3+#5の後）
+ハード:  #9 PUSH連携（#5の後）
+書出し:  #10 ALS書き出し（#8の後）
+```
 
 ---
 
@@ -284,14 +328,60 @@ HPS専用データ → HPSポータル経由（Cloudflare Access認証）
 
 **対応コードタイプ:** メジャー/マイナー三和音、7th全種（△7, 7, m7, dim7, m7b5, mM7, aug7）、9th, 11th, 13th, sus4, sus2, 6th, テンション付き（7(b9), 7(#9)等）、スラッシュコード
 
-### Phase 2 TODO（うりなみさんが触ってから決める）
+### Phase 2 完了（2026-02-28）
 
-- [ ] D&Dコード移動（SortableJS）← **うりなみさんリクエスト済み**
+**ビルダー + メモリー8個 + リピート + スケール連携。**
+
+- Builder（Root→Quality→Tension 3ステップ入力）
+- メモリースロット（最近使ったコード自動記録）
+- ダイアトニックバー（Key/Scale連動、7th/Triad切替）
+- リピート（Rキー、Shift+click範囲、Ctrl+R範囲ペースト）
+
+### Phase 3 完了（2026-03-01）
+
+**入力速度の根本改善。うりなみさんの「入力が遅い」フィードバックに対応。**
+
+| ファイル | 変更 | 内容 |
+|---------|------|------|
+| `chart.js` | 編集 | advanceCursor→1拍単位、duplicateChord、D&Dドロップリスナー |
+| `incremental.js` | **新規** | インクリメンタルコード入力システム |
+| `builder.js` | 編集 | メモリー16個、SortableJS D&D、Builder折りたたみ化 |
+| `app.js` | 全面改修 | ←→1拍移動、Shift+←→小節、Cmd+D、?ヘルプ、A-G/0-9自動フォーカス |
+| `index.html` | 全面改修 | インクリメンタルUI、ヘルプモーダル、SortableJS CDN、v3.0.0 |
+| `style.css` | 全面改修 | インクリメンタル、ドロップダウン、ヘルプモーダル、メモリー2行、D&D |
+
+**新しい操作体系:**
+- `A`-`G` : インクリメンタル入力にフォーカス+ルート入力
+- `1`-`16` : メモリーリコール（番号入力→候補→Enter）
+- `←` `→` : 1拍移動（小節をまたぐ）
+- `Shift+←` `→` : 1小節移動
+- `↑` `↓` : ライン移動
+- `Cmd+D` : 複製（= repeat）
+- `R` : リピート
+- `?` : ヘルプモーダル
+- `Enter` : 確定 or インクリメンタルにフォーカス
+- `Tab` : ドロップダウン候補補完
+- `/` : オンコード入力分岐（Am7/G等）
+- メモリー→グリッド: ドラッグ&ドロップ配置
+
+**インクリメンタル入力の仕組み:**
+- テキスト入力 → QUALITY_KEYS prefix matchで候補リアルタイム絞り込み
+- ↑↓で候補選択、Enterで確定 → placeChord + addToMemory + advanceCursor
+- 数字のみ → メモリースロットリコール候補
+- `/`入力 → スラッシュコード（ベース音候補12音）
+- 候補なしでもEnter → parseChordName直接試行（フリー記述）
+
+**SortableJS:** CDN `https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js`
+- `forceFallback: true` + `fallbackOnBody: true`（HTML5 D&D API回避、MEMORYに記録済みノウハウ）
+- delay: 200ms（クリックとドラッグ誤爆防止）
+
+### Phase 4 TODO（うりなみさんフィードバック後）
+
 - [ ] 手形（パッドボイシング）表示 ← **うりなみさんリクエスト済み**
 - [ ] PUSHからの音価変更 ← **うりなみさんリクエスト済み**
 - [ ] パッド入力（弾く→コード自動判定→配置）
+- [ ] D&Dコード移動（グリッド内でのドラッグ並べ替え）
 - [ ] ギターダイアグラム
-- [ ] カーソル爆速入力（↑↓で音価変更）
 - [ ] WebAudioFontエンジン移植（64 Pad Explorerから）
 - [ ] CHS書き出し
 - [ ] .clvzインポート

@@ -4,46 +4,211 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Master Rhythm Chart</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=5.8.0">
 </head>
 <body>
 
   <header>
-    <input type="text" id="title-input" placeholder="Master Rhythm Chart" class="title-input">
+    <input type="text" id="title-input" placeholder="曲名を入力..." class="title-input">
     <div class="controls">
+      <div class="view-tabs">
+        <button id="btn-view-grid" class="view-tab active" onclick="toggleScoreView(false)">Grid</button>
+        <button id="btn-view-score" class="view-tab" onclick="toggleScoreView(true)">Score</button>
+      </div>
+      <label>Bars <input type="number" id="bars-input" min="1" max="128" value="16" class="bars-input"></label>
       <label>BPM <input type="number" id="tempo-input" min="40" max="300" value="120" class="tempo-input"></label>
+      <label>Key
+        <select id="key-select" class="key-select">
+          <option value="0">C</option>
+          <option value="1">C#/Db</option>
+          <option value="2">D</option>
+          <option value="3">D#/Eb</option>
+          <option value="4">E</option>
+          <option value="5">F</option>
+          <option value="6">F#/Gb</option>
+          <option value="7">G</option>
+          <option value="8">G#/Ab</option>
+          <option value="9">A</option>
+          <option value="10">A#/Bb</option>
+          <option value="11">B</option>
+        </select>
+      </label>
+      <select id="scale-select" class="scale-select">
+        <option value="major">Major</option>
+        <option value="minor">Minor</option>
+      </select>
       <button id="btn-play" class="btn-play">&#9654; Play</button>
+      <select id="click-select" class="click-select">
+        <option value="all">Click: All</option>
+        <option value="24">Click: 2,4</option>
+        <option value="off">Click: Off</option>
+      </select>
+      <select id="preset-select" class="preset-select">
+        <option value="Rhodes 1">Rhodes 1</option>
+        <option value="Rhodes 2">Rhodes 2</option>
+        <option value="FM EP 1">FM EP 1</option>
+        <option value="Organ">Organ</option>
+      </select>
+      <label>Vol <input type="range" id="vol-slider" min="0" max="1" step="0.01" value="0.6" class="sound-slider"></label>
+      <label>Rev <input type="range" id="rev-slider" min="0" max="0.5" step="0.01" value="0.08" class="sound-slider"></label>
       <button id="btn-clear" class="btn-clear">Clear</button>
+      <button class="help-btn" onclick="document.getElementById('help-overlay').classList.add('active')">?</button>
     </div>
   </header>
 
+  <!-- Section Bar (collapsible) -->
+  <div class="section-bar-container">
+    <div class="section-bar-header">
+      <button id="btn-section-toggle" class="btn-section-toggle">&#9660; Sections</button>
+    </div>
+    <div id="section-bar-content" class="section-bar-content">
+      <div id="section-bar" class="section-bar"></div>
+      <div class="section-bar-bottom">
+        <div id="form-display" class="form-display"></div>
+        <div class="ending-controls">
+          <span class="ending-controls-label">Ending:</span>
+          <button id="btn-ending-1" class="ending-btn" title="Toggle 1st ending">1.</button>
+          <button id="btn-ending-2" class="ending-btn" title="Toggle 2nd ending">2.</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <main>
     <div id="chart-grid" class="chart-grid"></div>
+    <div id="score-view" class="score-view" style="display:none"></div>
   </main>
 
   <footer>
-    <div class="chord-input-area">
-      <input type="text" id="chord-input"
-             placeholder="Chord (e.g. C7, Dm7, G7/B)"
-             class="chord-input"
+    <!-- Incremental Chord Input (always visible) -->
+    <div class="incremental-container">
+      <input id="incremental-input" type="text" placeholder="C, Cm7, 1-16..."
              autocomplete="off" spellcheck="false" autocorrect="off">
-      <button id="chord-submit" class="btn-submit">Enter</button>
+      <div id="incremental-dropdown" class="incremental-dropdown"></div>
     </div>
+
+    <!-- Diatonic Bar -->
+    <div class="diatonic-section">
+      <div id="diatonic-bar" class="diatonic-bar"></div>
+      <button id="btn-7th-toggle" class="btn-toggle">Triad</button>
+    </div>
+
+    <!-- Memory Slots (16 slots, 2 rows) -->
+    <div class="memory-section">
+      <span class="section-label">Memory</span>
+      <div id="memory-bar" class="memory-bar"></div>
+      <button id="btn-memory-clear" class="btn-memory-clear" title="Clear all memory" onclick="clearAllMemory()">Clear</button>
+    </div>
+
+    <!-- Builder Panel (default open) -->
+    <div class="builder-toggle-section">
+      <button id="btn-builder-toggle" class="btn-builder-toggle">&#9660; Builder</button>
+    </div>
+
+    <div id="builder-panel" class="builder-panel">
+      <div class="builder-header">
+        <span id="builder-step" class="builder-step">Step: Root</span>
+        <span id="builder-preview" class="builder-preview"></span>
+      </div>
+
+      <div id="builder-roots" class="builder-roots"></div>
+
+      <div id="builder-qualities" class="builder-qualities"></div>
+
+      <div id="builder-tensions" class="builder-tensions"></div>
+
+      <div class="builder-actions">
+        <button id="btn-bass" class="builder-btn action-btn" onclick="toggleBassMode()">/bass</button>
+        <button class="builder-btn action-btn" onclick="resetBuilder()">Reset</button>
+      </div>
+    </div>
+
+    <!-- Shortcuts -->
     <div class="shortcuts">
-      <kbd>&#8592;</kbd><kbd>&#8594;</kbd> measure
+      <kbd>&#8592;</kbd><kbd>&#8594;</kbd> beat
+      <kbd>Shift+&#8592;</kbd><kbd>&#8594;</kbd> measure
       <kbd>&#8593;</kbd><kbd>&#8595;</kbd> line
-      <kbd>Tab</kbd> beat
-      <kbd>Space</kbd> play/stop
-      <kbd>A</kbd>-<kbd>G</kbd> input
+      <kbd>Space</kbd> play
+      <kbd>R</kbd> repeat
+      <kbd>Cmd+Z</kbd> undo
+      <kbd>Cmd+Shift+Z</kbd> redo
       <kbd>Del</kbd> delete
+      <kbd>&#8594;</kbd>(input) extend
+      <kbd>?</kbd> help
     </div>
   </footer>
 
-  <script src="data.js"></script>
-  <script src="theory.js"></script>
-  <script src="audio.js"></script>
-  <script src="chart.js"></script>
-  <script src="app.js"></script>
+  <!-- Help Modal -->
+  <div class="help-overlay" id="help-overlay"
+       onclick="if(event.target===this)this.classList.remove('active')">
+    <div class="help-modal">
+      <h2>Master Rhythm Chart</h2>
+      <p>コード進行を素早く入力・再生する学習支援ツール</p>
+
+      <h3>入力方法</h3>
+      <ul>
+        <li><kbd>A</kbd>-<kbd>G</kbd> ルート入力（インクリメンタル）</li>
+        <li><kbd>1</kbd>-<kbd>16</kbd> メモリーリコール</li>
+        <li><kbd>/</kbd> オンコード入力</li>
+        <li><kbd>Enter</kbd> 確定・配置</li>
+        <li><kbd>&#8593;</kbd><kbd>&#8595;</kbd> 候補選択 / ライン移動</li>
+        <li><kbd>&#8594;</kbd> テンション拡張（入力中）</li>
+        <li><kbd>Tab</kbd> 補完</li>
+        <li><kbd>h</kbd> = m7b5, <kbd>q</kbd> = quartal, <kbd>maj</kbd> = major</li>
+      </ul>
+
+      <h3>移動</h3>
+      <ul>
+        <li><kbd>&#8592;</kbd><kbd>&#8594;</kbd> 1拍移動</li>
+        <li><kbd>Shift+&#8592;</kbd><kbd>&#8594;</kbd> 1小節移動</li>
+        <li><kbd>&#8593;</kbd><kbd>&#8595;</kbd> ライン移動</li>
+        <li>コードをクリック → 編集モード</li>
+      </ul>
+
+      <h3>編集</h3>
+      <ul>
+        <li><kbd>Cmd+Z</kbd> アンドゥ</li>
+        <li><kbd>Cmd+Shift+Z</kbd> リドゥ</li>
+        <li><kbd>R</kbd> リピート（直前のコード）</li>
+        <li><kbd>Cmd+D</kbd> 複製</li>
+        <li><kbd>Del</kbd> 削除（範囲選択時は一括）</li>
+        <li><kbd>Shift+Click</kbd> リピート範囲設定</li>
+        <li><kbd>Ctrl+R</kbd> 範囲ペースト</li>
+        <li><kbd>Esc</kbd> 範囲クリア / 再生停止</li>
+      </ul>
+
+      <h3>再生</h3>
+      <ul>
+        <li><kbd>Space</kbd> 再生/停止</li>
+      </ul>
+
+      <h3>メモリー</h3>
+      <ul>
+        <li>配置したコードは自動記録（最大16個）</li>
+        <li>メモリーボタンをクリック → リコール</li>
+        <li><kbd>Shift+Click</kbd> → スロットクリア</li>
+        <li>ドラッグ → グリッドにドロップ配置</li>
+        <li>長押しドラッグ → メモリー内並べ替え</li>
+      </ul>
+
+      <button class="close-btn" onclick="document.getElementById('help-overlay').classList.remove('active')">閉じる</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
+  <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
+  <script src="https://surikov.github.io/webaudiofontdata/sound/0040_FluidR3_GM_sf2_file.js"></script>
+  <script src="https://surikov.github.io/webaudiofontdata/sound/0040_GeneralUserGS_sf2_file.js"></script>
+  <script src="https://surikov.github.io/webaudiofontdata/sound/0050_FluidR3_GM_sf2_file.js"></script>
+  <script src="https://surikov.github.io/webaudiofontdata/sound/0160_FluidR3_GM_sf2_file.js"></script>
+  <script src="data.js?v=5.8.0"></script>
+  <script src="theory.js?v=5.8.0"></script>
+  <script src="audio.js?v=5.8.0"></script>
+  <script src="chart.js?v=5.8.0"></script>
+  <script src="scoreview.js?v=5.8.0"></script>
+  <script src="incremental.js?v=5.8.0"></script>
+  <script src="builder.js?v=5.8.0"></script>
+  <script src="app.js?v=5.8.0"></script>
 
 </body>
 </html>

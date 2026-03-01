@@ -1,5 +1,5 @@
 // ========================================
-// APP — Initialization & Keyboard Handler
+// APP — Initialization & Keyboard Handler (Phase 3)
 // ========================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -17,6 +17,17 @@ document.addEventListener('DOMContentLoaded', () => {
     titleInput.addEventListener('input', () => {
       ChartState.title = titleInput.value;
       saveChart();
+    });
+  }
+
+  // Bars input (controls current section's measure count)
+  const barsInput = document.getElementById('bars-input');
+  if (barsInput) {
+    barsInput.value = getCurrentSection().measures.length;
+    barsInput.addEventListener('change', () => {
+      const val = parseInt(barsInput.value);
+      if (val >= 1 && val <= 128) setTotalMeasures(val);
+      barsInput.value = getCurrentSection().measures.length;
     });
   }
 
@@ -42,129 +53,271 @@ document.addEventListener('DOMContentLoaded', () => {
     saveChart();
   });
 
-  // Chord input field
-  const chordInput = document.getElementById('chord-input');
-  if (chordInput) {
-    chordInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        submitChord();
-      }
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        chordInput.blur();
-      }
+  // Section bar toggle
+  const sectionToggle = document.getElementById('btn-section-toggle');
+  const sectionContent = document.getElementById('section-bar-content');
+  if (sectionToggle && sectionContent) {
+    sectionToggle.addEventListener('click', () => {
+      const isHidden = sectionContent.style.display === 'none';
+      sectionContent.style.display = isHidden ? '' : 'none';
+      sectionToggle.textContent = (isHidden ? '\u25BC' : '\u25B6') + ' Sections';
     });
   }
 
-  // Submit button
-  document.getElementById('chord-submit')?.addEventListener('click', submitChord);
+  // Ending buttons
+  document.getElementById('btn-ending-1')?.addEventListener('click', () => {
+    setMeasureEnding(getCursorFlat(), 1);
+  });
+  document.getElementById('btn-ending-2')?.addEventListener('click', () => {
+    setMeasureEnding(getCursorFlat(), 2);
+  });
+
+  // Initialize builder (includes incremental init)
+  initBuilder();
+
+  // Restore key/scale selects from state
+  const keySelect = document.getElementById('key-select');
+  if (keySelect) keySelect.value = ChartState.key;
+  const scaleSelect = document.getElementById('scale-select');
+  if (scaleSelect) scaleSelect.value = ChartState.scaleType;
+
+  // Click pattern
+  const clickSelect = document.getElementById('click-select');
+  if (clickSelect) {
+    clickSelect.addEventListener('change', () => {
+      ChartState.clickPattern = clickSelect.value;
+      saveSoundSettings();
+    });
+  }
+
+  // Sound controls
+  const presetSelect = document.getElementById('preset-select');
+  if (presetSelect) {
+    presetSelect.addEventListener('change', () => {
+      setPreset(presetSelect.value);
+    });
+  }
+  const volSlider = document.getElementById('vol-slider');
+  if (volSlider) {
+    volSlider.addEventListener('input', () => {
+      setVolume(parseFloat(volSlider.value));
+      saveSoundSettings();
+    });
+  }
+  const revSlider = document.getElementById('rev-slider');
+  if (revSlider) {
+    revSlider.addEventListener('input', () => {
+      setReverb(parseFloat(revSlider.value));
+      saveSoundSettings();
+    });
+  }
+  // Restore saved sound settings
+  loadSoundSettings();
 
   // Global keyboard handler
   document.addEventListener('keydown', handleKeydown);
 
-  // Focus chord input initially
-  chordInput?.focus();
+  // Auto-focus incremental input on load
+  const incInput = document.getElementById('incremental-input');
+  if (incInput) incInput.focus();
 });
 
-// ======== CHORD SUBMISSION ========
-
-function submitChord() {
-  const input = document.getElementById('chord-input');
-  if (!input || !input.value.trim()) return;
-
-  const name = input.value.trim();
-  const success = placeChord(name);
-
-  if (success) {
-    input.value = '';
-    // Auto-advance to next measure (beat 0)
-    const next = ChartState.cursor.measure + 1;
-    if (next < ChartState.totalMeasures) {
-      setCursor(next, 0);
-    }
-    saveChart();
-  } else {
-    // Invalid chord — flash the input red briefly
-    input.classList.add('error');
-    setTimeout(() => input.classList.remove('error'), 400);
-  }
-}
-
-// ======== KEYBOARD HANDLER ========
+// ======== KEYBOARD HANDLER (Phase 3) ========
 
 function handleKeydown(e) {
-  const input = document.getElementById('chord-input');
-  const inInput = document.activeElement === input;
+  const incInput = document.getElementById('incremental-input');
+  const activeEl = document.activeElement;
+  const inIncremental = activeEl === incInput;
+  const inAnyInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'SELECT' || activeEl.tagName === 'TEXTAREA');
 
-  // Always handle Space for play/stop (unless typing)
-  if (e.key === ' ' && !inInput) {
+  // Cmd+Z / Cmd+Shift+Z: Undo/Redo (works even in incremental)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
+    e.preventDefault();
+    if (e.shiftKey) { redo(); } else { undo(); }
+    return;
+  }
+
+  // Incremental input handles its own keys — let it through
+  if (inIncremental) return;
+
+  // Always handle Space for play/stop (unless in other input)
+  if (e.key === ' ' && !inAnyInput) {
     e.preventDefault();
     togglePlay();
     return;
   }
 
-  // Don't handle navigation when typing in input
-  if (inInput) return;
+  // Don't handle when in other inputs (title, tempo, key select)
+  if (inAnyInput) return;
 
-  // Stop playback on Escape
-  if (e.key === 'Escape' && ChartState.playing) {
+  // ? = Help modal toggle
+  if (e.key === '?' || (e.shiftKey && e.key === '/')) {
     e.preventDefault();
-    stopPlayback();
+    const overlay = document.getElementById('help-overlay');
+    if (overlay) overlay.classList.toggle('active');
     return;
   }
 
-  const { measuresPerLine, totalMeasures, beatsPerMeasure } = ChartState;
-  const { measure, beat } = ChartState.cursor;
+  // Stop playback on Escape, or clear repeat range
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    if (ChartState.playing) {
+      stopPlayback();
+    } else if (ChartState.repeatRange) {
+      clearRepeatRange();
+    }
+    return;
+  }
+
+  // Cmd+D / Ctrl+D: Duplicate (same as repeat)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+    e.preventDefault();
+    duplicateChord();
+    return;
+  }
+
+  // Ctrl+R: Copy repeat range
+  if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+    e.preventDefault();
+    copyRepeatRange();
+    return;
+  }
+
+  const measuresPerLine = ChartState.measuresPerLine;
+  const totalMeasures = getTotalMeasures();
+  const beatsPerMeasure = getCurrentBeatsPerMeasure();
+  const curFlat = getCursorFlat();
+  const beat = ChartState.cursor.beat;
 
   switch (e.key) {
     case 'ArrowRight':
       e.preventDefault();
-      setCursor(Math.min(measure + 1, totalMeasures - 1), 0);
+      if (e.shiftKey) {
+        // Shift+→: extend range selection right
+        if (!ChartState.repeatRange) {
+          ChartState.repeatRange = { start: curFlat, end: curFlat };
+        }
+        if (ChartState.repeatRange.end + 1 < totalMeasures) {
+          ChartState.repeatRange.end++;
+        }
+        renderChart();
+      } else {
+        // →: 1 beat forward (wraps across measures/sections)
+        const nextBeat = beat + 1;
+        if (nextBeat < beatsPerMeasure) {
+          setCursor(curFlat, nextBeat);
+        } else if (curFlat + 1 < totalMeasures) {
+          setCursor(curFlat + 1, 0);
+        }
+      }
       break;
 
     case 'ArrowLeft':
       e.preventDefault();
-      setCursor(Math.max(measure - 1, 0), 0);
+      if (e.shiftKey) {
+        // Shift+←: extend range selection left
+        if (!ChartState.repeatRange) {
+          ChartState.repeatRange = { start: curFlat, end: curFlat };
+        }
+        if (ChartState.repeatRange.start > 0) {
+          ChartState.repeatRange.start--;
+        }
+        renderChart();
+      } else {
+        // ←: 1 beat backward (wraps across measures/sections)
+        const prevBeat = beat - 1;
+        if (prevBeat >= 0) {
+          setCursor(curFlat, prevBeat);
+        } else if (curFlat > 0) {
+          setCursor(curFlat - 1, getBeatsPerMeasureAt(curFlat - 1) - 1);
+        }
+      }
       break;
 
     case 'ArrowDown':
       e.preventDefault();
-      setCursor(Math.min(measure + measuresPerLine, totalMeasures - 1), beat);
+      setCursor(Math.min(curFlat + measuresPerLine, totalMeasures - 1), beat);
       break;
 
     case 'ArrowUp':
       e.preventDefault();
-      setCursor(Math.max(measure - measuresPerLine, 0), beat);
-      break;
-
-    case 'Tab':
-      e.preventDefault();
-      if (e.shiftKey) {
-        setCursor(measure, Math.max(beat - 1, 0));
-      } else {
-        setCursor(measure, Math.min(beat + 1, beatsPerMeasure - 1));
-      }
+      setCursor(Math.max(curFlat - measuresPerLine, 0), beat);
       break;
 
     case 'Delete':
+      e.preventDefault();
+      if (ChartState.repeatRange) {
+        pushUndo();
+        const { start: rStart, end: rEnd } = ChartState.repeatRange;
+        for (let rm = rStart; rm <= rEnd; rm++) {
+          const m = getMeasureAt(rm);
+          if (m) m.chords = [];
+        }
+        clearRepeatRange();
+        saveChart();
+      } else {
+        removeChord();
+        saveChart();
+      }
+      break;
+
     case 'Backspace':
       e.preventDefault();
-      removeChord();
-      saveChart();
+      if (ChartState.repeatRange) {
+        pushUndo();
+        const { start: rStart2, end: rEnd2 } = ChartState.repeatRange;
+        for (let rm = rStart2; rm <= rEnd2; rm++) {
+          const m = getMeasureAt(rm);
+          if (m) m.chords = [];
+        }
+        clearRepeatRange();
+        saveChart();
+      } else {
+        // BS = 消して1拍戻る
+        removeChord();
+        const prevBeatBS = beat - 1;
+        if (prevBeatBS >= 0) {
+          setCursor(curFlat, prevBeatBS);
+        } else if (curFlat > 0) {
+          setCursor(curFlat - 1, getBeatsPerMeasureAt(curFlat - 1) - 1);
+        }
+        saveChart();
+      }
+      break;
+
+    case 'r':
+    case 'R':
+      // Repeat last placed chord (non-Ctrl)
+      if (!e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        repeatLastChord();
+      }
       break;
 
     case 'Enter':
+      // Focus incremental input
       e.preventDefault();
-      if (input) input.focus();
+      if (incInput) incInput.focus();
       break;
 
     default:
-      // Auto-focus chord input on letter keys (A-G for chord roots)
+      // A-G: focus incremental input and pass the keystroke
       if (/^[A-Ga-g]$/.test(e.key) && !ChartState.playing) {
-        if (input) {
-          input.focus();
-          // Don't prevent default — let the key be typed
+        e.preventDefault();
+        if (incInput) {
+          incInput.value = e.key.toUpperCase();
+          incInput.focus();
+          // Trigger input event to generate candidates
+          incInput.dispatchEvent(new Event('input'));
+        }
+      }
+      // 0-9: focus incremental input for memory recall
+      if (/^[0-9]$/.test(e.key) && !ChartState.playing) {
+        e.preventDefault();
+        if (incInput) {
+          incInput.value = e.key;
+          incInput.focus();
+          incInput.dispatchEvent(new Event('input'));
         }
       }
       break;

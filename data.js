@@ -21,12 +21,30 @@ const QUALITY_INTERVALS = {
   // Multi-tension combinations
   '7(b9,b13)':  [0, 4, 7, 10, 13, 20],
   '7(#9,b13)':  [0, 4, 7, 10, 15, 20],
+  '7(9,b13)':   [0, 4, 7, 10, 14, 20],
   '7(b9,#11)':  [0, 4, 7, 10, 13, 18],
   '7(#9,#11)':  [0, 4, 7, 10, 15, 18],
   '7(9,#11)':   [0, 4, 7, 10, 14, 18],
   '7(9,13)':    [0, 4, 7, 10, 14, 21],
   'maj7(#11)':  [0, 4, 7, 11, 18],
   '\u25B37(#11)': [0, 4, 7, 11, 18],
+  // m7b5 + tensions
+  'm7b5(b13)':  [0, 3, 6, 10, 20],
+  'm7b5(11)':   [0, 3, 6, 10, 17],
+  'm7b5(9)':    [0, 3, 6, 10, 14],
+  // maj7 + tensions
+  'maj7(13)':   [0, 4, 7, 11, 21],
+  'maj7(9)':    [0, 4, 7, 11, 14],
+  // m7 + tensions
+  'm7(13)':     [0, 3, 7, 10, 21],
+  'm7(11)':     [0, 3, 7, 10, 17],
+  'm7(9)':      [0, 3, 7, 10, 14],
+  // 7 + tension explicit form
+  '7(13)':      [0, 4, 7, 10, 14, 21],
+  '7(11)':      [0, 4, 7, 10, 14, 17],
+  '7(9)':       [0, 4, 7, 10, 14],
+  // Quartal (4th stacking)
+  'quartal':    [0, 5, 10, 15],
   // 4-5 char qualities
   '7sus4':  [0, 5, 7, 10],
   'm7b5':   [0, 3, 6, 10],
@@ -63,6 +81,7 @@ const QUALITY_INTERVALS = {
   '7b9':  [0, 4, 7, 10, 13],
   '7#5':  [0, 4, 8, 10],
   '7b5':  [0, 4, 6, 10],
+  'maj':  [0, 4, 7],
   'M9':   [0, 4, 7, 11, 14],
   'M7':   [0, 4, 7, 11],
   // 3 char
@@ -78,6 +97,8 @@ const QUALITY_INTERVALS = {
   '9':    [0, 4, 7, 10, 14],
   '7':    [0, 4, 7, 10],
   '6':    [0, 4, 7, 9],
+  'q':    [0, 5, 10, 15],
+  'h':    [0, 3, 6, 10],
   '\u00F8': [0, 3, 6, 10],    // ø
   '\u00B0': [0, 3, 6],        // °
   '+':    [0, 4, 8],
@@ -89,3 +110,66 @@ const QUALITY_INTERVALS = {
 
 // Pre-sorted keys for matching (longest first)
 const QUALITY_KEYS = Object.keys(QUALITY_INTERVALS).sort((a, b) => b.length - a.length);
+
+// Alias → canonical display name (shortcuts that should show the real name)
+const QUALITY_DISPLAY = {
+  'h':   'm7b5',
+  'q':   'quartal',
+  '-':   'm',
+  '+':   'aug',
+  '\u00F8': 'm7b5',  // ø
+  '\u00B0': 'dim',   // °
+  'M7':  'maj7',
+};
+
+// ========================================
+// BUILDER DATA — Chord Builder UI
+// ========================================
+
+// 4×3 grid — same layout as 64 Pad Explorer
+const BUILDER_QUALITIES = [
+  [{name:'', label:'Maj'}, {name:'m', label:'m'}, {name:'m7b5', label:'m7b5'}],
+  [{name:'6', label:'6'}, {name:'m6', label:'m6'}, {name:'dim', label:'dim'}],
+  [{name:'7', label:'7'}, {name:'m7', label:'m7'}, {name:'dim7', label:'dim7'}],
+  [{name:'maj7', label:'\u25B37'}, {name:'mM7', label:'m\u25B37'}, {name:'aug', label:'aug'}],
+];
+
+// 3×4 grid — common tensions only
+// suffix: string to append. replacesQuality: replaces quality name entirely
+const BUILDER_TENSIONS = [
+  [{label:'sus4', suffix:'sus4', replacesQuality:true},
+   {label:'sus2', suffix:'sus2', replacesQuality:true},
+   {label:'add9', suffix:'add9', replacesQuality:true},
+   {label:'9', suffix:'9', replacesQuality:true}],
+  [{label:'(b9)', suffix:'7(b9)'},
+   {label:'(#9)', suffix:'7(#9)'},
+   {label:'(#11)', suffix:'7(#11)'},
+   {label:'(b13)', suffix:'7(b13)'}],
+  [{label:'(9,13)', suffix:'7(9,13)'},
+   {label:'(b9,b13)', suffix:'7(b9,b13)'},
+   {label:'(#9,b13)', suffix:'7(#9,b13)'},
+   {label:'(b9,#11)', suffix:'7(b9,#11)'}],
+];
+
+// Standard (theoretically available) tensions per base quality
+// Used to visually distinguish standard vs non-standard in Builder
+const STANDARD_TENSIONS = {
+  '7':     ['(9)', '(b9)', '(#9)', '(#11)', '(b13)', '(13)'],
+  'maj7':  ['(9)', '(#11)', '(13)'],
+  'm7':    ['(9)', '(11)', '(13)'],
+  'm7b5':  ['(9)', '(11)', '(b13)'],
+  'mM7':   ['(9)', '(11)', '(13)'],
+};
+
+// ========================================
+// SCALE DATA — Diatonic chord generation
+// ========================================
+
+const SCALE_TYPES = [
+  {id: 'major', label: 'Major', intervals: [0,2,4,5,7,9,11],
+   triadQualities: ['','m','m','','','m','dim'],
+   seventhQualities: ['maj7','m7','m7','maj7','7','m7','m7b5']},
+  {id: 'minor', label: 'Minor', intervals: [0,2,3,5,7,8,10],
+   triadQualities: ['m','dim','','m','m','',''],
+   seventhQualities: ['m7','m7b5','maj7','m7','m7','maj7','7']},
+];
