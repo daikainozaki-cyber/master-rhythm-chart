@@ -34,6 +34,9 @@ const ChartState = {
 
   // Click pattern: 'off', 'all', '24' (backbeat)
   clickPattern: 'all',
+
+  // Hidden sections (indices): sections whose grid rows are collapsed
+  hiddenSections: new Set(),
 };
 
 // ======== UNDO / REDO ========
@@ -260,6 +263,9 @@ function renderChart() {
     secHeader.textContent = section.label;
     grid.appendChild(secHeader);
 
+    // Skip rendering if section is hidden
+    if (ChartState.hiddenSections.has(secIdx)) return;
+
     const bpm = section.timeSignature.beats;
     const sectionLen = section.measures.length;
     const endingGroups = getEndingGroups(section.measures);
@@ -464,9 +470,27 @@ function renderSectionBar() {
       }
     });
 
+    // Eye toggle (show/hide section in grid)
+    const eyeBtn = document.createElement('span');
+    eyeBtn.className = 'section-tab-eye';
+    const isHidden = ChartState.hiddenSections.has(idx);
+    eyeBtn.textContent = isHidden ? '\u25B7' : '\u25BC';
+    eyeBtn.title = isHidden ? 'Show section' : 'Hide section';
+    if (isHidden) tab.classList.add('section-hidden');
+    eyeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (ChartState.hiddenSections.has(idx)) {
+        ChartState.hiddenSections.delete(idx);
+      } else {
+        ChartState.hiddenSections.add(idx);
+      }
+      renderChart();
+    });
+
     tab.appendChild(label);
     tab.appendChild(info);
     tab.appendChild(ts);
+    tab.appendChild(eyeBtn);
     bar.appendChild(tab);
   });
 

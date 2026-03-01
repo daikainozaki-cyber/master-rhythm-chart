@@ -276,6 +276,25 @@ header {
   text-decoration: underline;
 }
 
+.section-tab-eye {
+  font-size: 0.65rem;
+  opacity: 0.5;
+  cursor: pointer;
+  margin-left: 2px;
+}
+
+.section-tab-eye:hover {
+  opacity: 1;
+}
+
+.section-tab.section-hidden {
+  opacity: 0.5;
+}
+
+.section-tab.section-hidden .section-tab-label {
+  text-decoration: line-through;
+}
+
 .section-add-btn {
   width: 28px;
   height: 28px;
