@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Master Rhythm Chart</title>
-  <link rel="stylesheet" href="style.css?v=0.6.0">
+  <link rel="stylesheet" href="style.css?v=0.11.5">
 </head>
 <body>
 
@@ -63,77 +63,130 @@
     </div>
     <div id="section-bar-content" class="section-bar-content">
       <div id="section-bar" class="section-bar"></div>
+      <div class="form-row">
+        <span class="form-row-label">Form:</span>
+        <div id="form-chips" class="form-chips"></div>
+        <div class="form-add-wrapper">
+          <button id="btn-form-add" class="form-add-btn" title="Add section to form">+</button>
+          <div id="form-add-menu" class="form-add-menu"></div>
+        </div>
+      </div>
       <div class="section-bar-bottom">
-        <div id="form-display" class="form-display"></div>
+        <div class="repeat-controls">
+          <span class="repeat-controls-label">Repeat:</span>
+          <button id="btn-repeat-start" class="repeat-btn" title="Toggle Repeat Start">||:</button>
+          <button id="btn-repeat-end" class="repeat-btn" title="Toggle Repeat End">:||</button>
+        </div>
         <div class="ending-controls">
           <span class="ending-controls-label">Ending:</span>
           <button id="btn-ending-1" class="ending-btn" title="Toggle 1st ending">1.</button>
           <button id="btn-ending-2" class="ending-btn" title="Toggle 2nd ending">2.</button>
+          <button id="btn-ending-3" class="ending-btn" title="Toggle 3rd ending">3.</button>
+        </div>
+        <div class="nav-controls">
+          <span class="nav-controls-label">Nav:</span>
+          <button id="btn-nav-segno" class="nav-btn" title="Toggle Segno">&#119051;</button>
+          <button id="btn-nav-coda" class="nav-btn" title="Toggle Coda">&#119052;</button>
+          <button id="btn-nav-ds" class="nav-btn" title="Toggle D.S.">D.S.</button>
+          <button id="btn-nav-dc" class="nav-btn" title="Toggle D.C.">D.C.</button>
+          <button id="btn-nav-tocoda" class="nav-btn" title="Toggle To Coda">to&#119052;</button>
+          <button id="btn-nav-fine" class="nav-btn" title="Toggle Fine">Fine</button>
         </div>
       </div>
     </div>
   </div>
 
-  <main>
-    <div id="chart-grid" class="chart-grid"></div>
-    <div id="score-view" class="score-view" style="display:none"></div>
-  </main>
+  <div class="workspace">
+    <main>
+      <!-- Memory Slots (16 slots, above grid for D&D downward) -->
+      <div class="memory-section">
+        <div class="memory-header">
+          <span class="section-label">Memory</span>
+          <button id="btn-memory-clear" class="btn-memory-clear" title="Clear all memory" onclick="clearAllMemory()">Clear</button>
+        </div>
+        <div id="memory-bar" class="memory-bar"></div>
+      </div>
+      <div id="chart-grid" class="chart-grid"></div>
+      <div id="score-view" class="score-view" style="display:none"></div>
+    </main>
+
+    <aside id="builder-sidebar" class="builder-sidebar">
+      <!-- Incremental Chord Input -->
+      <div class="incremental-container">
+        <input id="incremental-input" type="text" placeholder="C, Cm7, 1-16..."
+               autocomplete="off" spellcheck="false" autocorrect="off">
+        <div id="incremental-dropdown" class="incremental-dropdown"></div>
+      </div>
+
+      <!-- Diatonic Bar -->
+      <div class="diatonic-section">
+        <div id="diatonic-bar" class="diatonic-bar"></div>
+        <button id="btn-7th-toggle" class="btn-toggle">Triad</button>
+      </div>
+
+      <!-- Chord Display Bar -->
+      <div id="chord-display-bar" class="chord-display-bar">
+        <span id="chord-display" class="chord-display"></span>
+        <button id="btn-slash" class="chord-action-btn" title="Slash chord">/</button>
+        <button id="btn-builder-clear" class="chord-action-btn" title="Clear">Clear</button>
+        <button id="btn-builder-back" class="chord-action-btn" title="Back to Step 1">Back</button>
+        <button id="btn-builder-next" class="chord-action-btn" title="Go to Step 2 (Tension/Voicing)">Next</button>
+      </div>
+
+      <div id="builder-panel" class="builder-panel">
+        <!-- Step 1: Root (Piano) + Quality -->
+        <div id="step1">
+          <div id="piano-root" class="piano-keyboard"></div>
+          <div id="quality-grid" class="quality-grid"></div>
+        </div>
+
+        <!-- Step 2: Tension + Voicing + On-Chord -->
+        <div id="step2" style="display:none">
+          <div id="tension-grid" class="tension-grid"></div>
+          <div class="voicing-bar">
+            <div class="voicing-group">
+              <button id="btn-omit5" class="voicing-btn">-5</button>
+              <button id="btn-rootless" class="voicing-btn">Rootless</button>
+              <button id="btn-omit3" class="voicing-btn">-3</button>
+            </div>
+            <div id="shell-bar" class="voicing-group">
+              <button id="btn-shell137" class="voicing-btn">Shell 1-3-7</button>
+              <button id="btn-shell173" class="voicing-btn">Shell 1-7-3</button>
+              <button id="btn-shell-ext1" class="voicing-btn">+1</button>
+              <button id="btn-shell-ext2" class="voicing-btn">+2</button>
+            </div>
+            <div class="voicing-group">
+              <button id="btn-inv0" class="voicing-btn active">Root</button>
+              <button id="btn-inv1" class="voicing-btn">1st</button>
+              <button id="btn-inv2" class="voicing-btn">2nd</button>
+              <button id="btn-inv3" class="voicing-btn">3rd</button>
+            </div>
+            <div id="drop-bar" class="voicing-group">
+              <button id="btn-drop2" class="voicing-btn">Drop2</button>
+              <button id="btn-drop3" class="voicing-btn">Drop3</button>
+            </div>
+          </div>
+          <div id="onchord-keyboard" class="piano-keyboard"></div>
+        </div>
+      </div>
+    </aside>
+  </div>
 
   <footer>
-    <!-- Incremental Chord Input (always visible) -->
-    <div class="incremental-container">
-      <input id="incremental-input" type="text" placeholder="C, Cm7, 1-16..."
-             autocomplete="off" spellcheck="false" autocorrect="off">
-      <div id="incremental-dropdown" class="incremental-dropdown"></div>
-    </div>
-
-    <!-- Diatonic Bar -->
-    <div class="diatonic-section">
-      <div id="diatonic-bar" class="diatonic-bar"></div>
-      <button id="btn-7th-toggle" class="btn-toggle">Triad</button>
-    </div>
-
-    <!-- Memory Slots (16 slots, 2 rows) -->
-    <div class="memory-section">
-      <span class="section-label">Memory</span>
-      <div id="memory-bar" class="memory-bar"></div>
-      <button id="btn-memory-clear" class="btn-memory-clear" title="Clear all memory" onclick="clearAllMemory()">Clear</button>
-    </div>
-
-    <!-- Builder Panel (default open) -->
-    <div class="builder-toggle-section">
-      <button id="btn-builder-toggle" class="btn-builder-toggle">&#9660; Builder</button>
-    </div>
-
-    <div id="builder-panel" class="builder-panel">
-      <div class="builder-header">
-        <span id="builder-step" class="builder-step">Step: Root</span>
-        <span id="builder-preview" class="builder-preview"></span>
-      </div>
-
-      <div id="builder-roots" class="builder-roots"></div>
-
-      <div id="builder-qualities" class="builder-qualities"></div>
-
-      <div id="builder-tensions" class="builder-tensions"></div>
-
-      <div class="builder-actions">
-        <button id="btn-bass" class="builder-btn action-btn" onclick="toggleBassMode()">/bass</button>
-        <button class="builder-btn action-btn" onclick="resetBuilder()">Reset</button>
-      </div>
-    </div>
-
     <!-- Shortcuts -->
     <div class="shortcuts">
       <kbd>&#8592;</kbd><kbd>&#8594;</kbd> beat
-      <kbd>Shift+&#8592;</kbd><kbd>&#8594;</kbd> measure
+      <kbd>Shift+&#8592;</kbd><kbd>&#8594;</kbd> select
       <kbd>&#8593;</kbd><kbd>&#8595;</kbd> line
       <kbd>Space</kbd> play
       <kbd>R</kbd> repeat
       <kbd>Cmd+Z</kbd> undo
       <kbd>Cmd+Shift+Z</kbd> redo
       <kbd>Del</kbd> delete
-      <kbd>&#8594;</kbd>(input) extend
+      <kbd>drag</kbd> move
+      <kbd>Opt+drag</kbd> copy
+      <kbd>Cmd+C</kbd> copy
+      <kbd>Cmd+V</kbd> paste
       <kbd>?</kbd> help
     </div>
   </footer>
@@ -160,7 +213,6 @@
       <h3>移動</h3>
       <ul>
         <li><kbd>&#8592;</kbd><kbd>&#8594;</kbd> 1拍移動</li>
-        <li><kbd>Shift+&#8592;</kbd><kbd>&#8594;</kbd> 1小節移動</li>
         <li><kbd>&#8593;</kbd><kbd>&#8595;</kbd> ライン移動</li>
         <li>コードをクリック → 編集モード</li>
       </ul>
@@ -172,8 +224,9 @@
         <li><kbd>R</kbd> リピート（直前のコード）</li>
         <li><kbd>Cmd+D</kbd> 複製</li>
         <li><kbd>Del</kbd> 削除（範囲選択時は一括）</li>
-        <li><kbd>Shift+Click</kbd> リピート範囲設定</li>
-        <li><kbd>Ctrl+R</kbd> 範囲ペースト</li>
+        <li><kbd>Shift+&#8592;</kbd><kbd>&#8594;</kbd> 範囲選択</li>
+        <li><kbd>Cmd+C</kbd> 範囲コピー</li>
+        <li><kbd>Cmd+V</kbd> 範囲ペースト（カーソル位置から）</li>
         <li><kbd>Esc</kbd> 範囲クリア / 再生停止</li>
       </ul>
 
@@ -201,14 +254,14 @@
   <script src="https://surikov.github.io/webaudiofontdata/sound/0040_GeneralUserGS_sf2_file.js"></script>
   <script src="https://surikov.github.io/webaudiofontdata/sound/0050_FluidR3_GM_sf2_file.js"></script>
   <script src="https://surikov.github.io/webaudiofontdata/sound/0160_FluidR3_GM_sf2_file.js"></script>
-  <script src="data.js?v=0.6.0"></script>
-  <script src="theory.js?v=0.6.0"></script>
-  <script src="audio.js?v=0.6.0"></script>
-  <script src="chart.js?v=0.6.0"></script>
-  <script src="scoreview.js?v=0.6.0"></script>
-  <script src="incremental.js?v=0.6.0"></script>
-  <script src="builder.js?v=0.6.0"></script>
-  <script src="app.js?v=0.6.0"></script>
+  <script src="data.js?v=0.10.1"></script>
+  <script src="theory.js?v=0.10.2"></script>
+  <script src="audio.js?v=0.10.1"></script>
+  <script src="chart.js?v=0.10.1"></script>
+  <script src="scoreview.js?v=0.10.1"></script>
+  <script src="incremental.js?v=0.10.2"></script>
+  <script src="builder.js?v=0.10.1"></script>
+  <script src="app.js?v=0.10.1"></script>
 
 </body>
 </html>

@@ -31,12 +31,20 @@ const ChartState = {
   lastPlacedChord: null,
   previousCursorPosition: null, // {sectionIndex, measure, beat}
   repeatRange: null,            // {start, end} — flat measure indices
+  clipboard: null,              // [{chords: [...]}] — copied measures
 
   // Click pattern: 'off', 'all', '24' (backbeat)
   clickPattern: 'all',
 
+  // Playback pass: 1 = first time (play ending 1), 2 = repeat (play ending 2)
+  playPass: 1,
+
   // Hidden sections (indices): sections whose grid rows are collapsed
   hiddenSections: new Set(),
+
+  // Navigation (D.S. jump tracking)
+  playDSActive: false,
+  playRepeatsUsed: new Set(),
 };
 
 // ======== UNDO / REDO ========
@@ -137,9 +145,7 @@ function getBeatsPerMeasureAt(flatIdx) {
 function shouldPlayMeasure(measure, occurrence) {
   const ending = measure.ending;
   if (!ending) return true;
-  if (ending === 1) return occurrence === 1;
-  if (ending === 2) return occurrence >= 2;
-  return true;
+  return ending === occurrence;
 }
 
 function getFormOccurrence(formIndex) {
@@ -180,6 +186,18 @@ function getEndingGroups(measures) {
     }
   }
   return groups;
+}
+
+function sectionHasEndings(section) {
+  return section.measures.some(m => m.ending != null && m.ending > 0);
+}
+
+function getMaxEnding(section) {
+  let max = 0;
+  for (const m of section.measures) {
+    if (m.ending != null && m.ending > max) max = m.ending;
+  }
+  return max;
 }
 
 function setMeasureEnding(flatIdx, ending) {
@@ -275,10 +293,18 @@ function renderChart() {
       const lineDiv = document.createElement('div');
       lineDiv.className = 'chart-line';
 
-      // Line number (section-relative)
+      // Line number (section-relative) — also drag selection start point
       const lineNum = document.createElement('div');
       lineNum.className = 'line-number';
       lineNum.textContent = (line * measuresPerLine + 1);
+      const lineFirstMeasure = line * measuresPerLine;
+      lineNum.addEventListener('mousedown', (ev) => {
+        if (ev.button !== 0 || ChartState.playing) return;
+        ev.preventDefault();
+        _dragStartX = ev.clientX;
+        _dragStartY = ev.clientY;
+        startDragSelect(sectionToFlat(secIdx, lineFirstMeasure));
+      });
       lineDiv.appendChild(lineNum);
 
       for (let col = 0; col < measuresPerLine; col++) {
@@ -288,7 +314,12 @@ function renderChart() {
         const measure = section.measures[mIdx];
         const mDiv = document.createElement('div');
         mDiv.className = 'measure';
+        mDiv.dataset.flat = String(sectionToFlat(secIdx, mIdx));
         mDiv.style.gridTemplateColumns = `repeat(${bpm}, 1fr)`;
+
+        // Repeat barline markers
+        if (measure.repeatStart) mDiv.classList.add('repeat-start-mark');
+        if (measure.repeatEnd) mDiv.classList.add('repeat-end-mark');
 
         // Volta bracket (ending markers)
         if (measure.ending) {
@@ -306,6 +337,15 @@ function renderChart() {
               mDiv.classList.add('ending-end');
             }
           }
+        }
+
+        // Navigation mark label
+        if (measure.nav) {
+          const navLabel = document.createElement('span');
+          navLabel.className = 'nav-label nav-' + measure.nav;
+          const symbols = { segno: '\uD834\uDD0B', coda: '\uD834\uDD0C', ds: 'D.S.', toCoda: 'to\uD834\uDD0C', dc: 'D.C.', fine: 'Fine' };
+          navLabel.textContent = symbols[measure.nav];
+          mDiv.appendChild(navLabel);
         }
 
         for (let b = 0; b < bpm; b++) {
@@ -347,9 +387,54 @@ function renderChart() {
 
           // Click handler — capture loop vars via const/let block scope
           const si = secIdx, mi = mIdx, bt = b;
+
+          // Mouse range selection
+          beatDiv.addEventListener('mousedown', (ev) => {
+            if (ev.button !== 0 || ChartState.playing || ev.shiftKey) return;
+            _dragStartX = ev.clientX;
+            _dragStartY = ev.clientY;
+            const flatIdx = sectionToFlat(si, mi);
+
+            if (!chord) {
+              // Empty beat: immediate range selection
+              ev.preventDefault();
+              startDragSelect(flatIdx);
+            } else {
+              // Chord beat: long press → range selection
+              clearTimeout(_longPressTimer);
+              _longPressActive = false;
+              _longPressTimer = setTimeout(() => {
+                _longPressActive = true;
+                document.body.style.cursor = 'crosshair';
+                startDragSelect(flatIdx);
+              }, LONG_PRESS_MS);
+            }
+          });
+
+          beatDiv.addEventListener('mouseup', () => {
+            clearTimeout(_longPressTimer);
+            if (!_dragSelecting) _longPressActive = false;
+          });
+
           beatDiv.addEventListener('click', (ev) => {
             if (ChartState.playing) return;
+            if (_longPressActive || _dragSelectMoved) {
+              _dragSelectMoved = false;
+              return; // suppress click after drag/long-press selection
+            }
             if (ev.shiftKey) {
+              // Shift+click on chord = delete it
+              const shiftChord = ChartState.sections[si].measures[mi].chords.find(c => c.beat === bt);
+              if (shiftChord) {
+                pushUndo();
+                ChartState.sections[si].measures[mi].chords =
+                  ChartState.sections[si].measures[mi].chords.filter(c => c.beat !== bt);
+                setCursorInSection(si, mi, bt);
+                renderChart();
+                saveChart();
+                return;
+              }
+              // Shift+click on empty beat = repeat range
               setRepeatRangePoint(sectionToFlat(si, mi));
               return;
             }
@@ -364,9 +449,23 @@ function renderChart() {
             }
           });
 
-          // D&D drop target (memory → grid)
+          // D&D: dragstart (drag = move, Option+drag = copy)
+          beatDiv.addEventListener('dragstart', (ev) => {
+            if (!chord) { ev.preventDefault(); return; }
+            // Long press active → cancel D&D, use range selection instead
+            if (_longPressActive) { ev.preventDefault(); return; }
+            // Quick drag → D&D, cancel long press timer
+            clearTimeout(_longPressTimer);
+            const mode = ev.altKey ? 'copy' : 'move';
+            ev.dataTransfer.setData('text/plain', chord.name);
+            ev.dataTransfer.setData('application/x-grid-source', JSON.stringify({ si, mi, bt, mode }));
+            ev.dataTransfer.effectAllowed = mode;
+          });
+
+          // D&D drop target (memory → grid, grid internal move)
           beatDiv.addEventListener('dragover', (ev) => {
             ev.preventDefault();
+            ev.dataTransfer.dropEffect = ev.altKey ? 'copy' : 'move';
             beatDiv.classList.add('drag-over');
           });
           beatDiv.addEventListener('dragleave', () => {
@@ -376,7 +475,42 @@ function renderChart() {
             ev.preventDefault();
             beatDiv.classList.remove('drag-over');
             const chordName = ev.dataTransfer.getData('text/plain');
-            if (chordName) {
+            if (!chordName) return;
+
+            const srcData = ev.dataTransfer.getData('application/x-grid-source');
+            if (srcData) {
+              // Grid-internal drag (move or copy)
+              const src = JSON.parse(srcData);
+              const srcMeasure = ChartState.sections[src.si].measures[src.mi];
+              const dstMeasure = ChartState.sections[si].measures[mi];
+              const srcChord = srcMeasure.chords.find(c => c.beat === src.bt);
+              if (!srcChord) return;
+
+              pushUndo();
+
+              if (src.mode === 'copy') {
+                dstMeasure.chords = dstMeasure.chords.filter(c => c.beat !== bt);
+                dstMeasure.chords.push({ name: srcChord.name, beat: bt, beats: srcChord.beats, voicing: srcChord.voicing || null });
+                dstMeasure.chords.sort((a, b) => a.beat - b.beat);
+              } else {
+                const dstChord = dstMeasure.chords.find(c => c.beat === bt);
+                srcMeasure.chords = srcMeasure.chords.filter(c => c.beat !== src.bt);
+                if (dstChord) {
+                  dstMeasure.chords = dstMeasure.chords.filter(c => c.beat !== bt);
+                  dstChord.beat = src.bt;
+                  srcMeasure.chords.push(dstChord);
+                  srcMeasure.chords.sort((a, b) => a.beat - b.beat);
+                }
+                srcChord.beat = bt;
+                dstMeasure.chords.push(srcChord);
+                dstMeasure.chords.sort((a, b) => a.beat - b.beat);
+              }
+
+              setCursorInSection(si, mi, bt);
+              renderChart();
+              saveChart();
+            } else {
+              // External drop (memory → grid)
               setCursorInSection(si, mi, bt);
               const success = placeChord(chordName);
               if (success) {
@@ -392,6 +526,29 @@ function renderChart() {
         lineDiv.appendChild(mDiv);
       }
 
+      // Click on line background (gap between measures) → start range selection
+      lineDiv.addEventListener('mousedown', (ev) => {
+        // Only if clicking directly on the lineDiv (not on child elements)
+        if (ev.target !== lineDiv || ev.button !== 0 || ChartState.playing) return;
+        ev.preventDefault();
+        _dragStartX = ev.clientX;
+        _dragStartY = ev.clientY;
+        // Find nearest measure by mouse X position
+        const measures = lineDiv.querySelectorAll('.measure[data-flat]');
+        let nearestFlat = sectionToFlat(secIdx, line * measuresPerLine);
+        let nearestDist = Infinity;
+        measures.forEach(mEl => {
+          const box = mEl.getBoundingClientRect();
+          const centerX = box.x + box.width / 2;
+          const dist = Math.abs(ev.clientX - centerX);
+          if (dist < nearestDist) {
+            nearestDist = dist;
+            nearestFlat = parseInt(mEl.dataset.flat);
+          }
+        });
+        startDragSelect(nearestFlat);
+      });
+
       grid.appendChild(lineDiv);
     }
   });
@@ -400,6 +557,8 @@ function renderChart() {
   updateBarsInput();
   renderSectionBar();
   updateEndingButtons();
+  updateNavButtons();
+  updateRepeatButtons();
 }
 
 function updateBarsInput() {
@@ -433,8 +592,28 @@ function renderSectionBar() {
     ts.className = 'section-tab-ts';
     ts.textContent = section.timeSignature.beats + '/' + section.timeSignature.noteValue;
 
-    // Click on tab → jump to section
+    // Click on label → stop propagation (prevent tab click from re-rendering)
+    label.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    // Double-click on label → inline rename
+    label.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      startInlineEdit(label, section.label, (newLabel) => {
+        if (newLabel && newLabel.trim()) updateSectionLabel(idx, newLabel.trim());
+      });
+    });
+
+    // Click on tab → jump to section / Shift+click → delete
     tab.addEventListener('click', (e) => {
+      if (e.shiftKey) {
+        e.stopPropagation();
+        if (ChartState.sections.length > 1) {
+          removeSection(idx);
+        }
+        return;
+      }
       const target = e.target;
       if (target.classList.contains('section-tab-info')) {
         e.stopPropagation();
@@ -453,13 +632,6 @@ function renderSectionBar() {
         return;
       }
       setCursorInSection(idx, 0, 0);
-    });
-
-    // Double-click on label → rename
-    label.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      const newLabel = prompt('Section name:', section.label);
-      if (newLabel && newLabel.trim()) updateSectionLabel(idx, newLabel.trim());
     });
 
     // Context menu → delete
@@ -487,10 +659,23 @@ function renderSectionBar() {
       renderChart();
     });
 
+    // Delete button (×)
+    const delBtn = document.createElement('span');
+    delBtn.className = 'section-tab-del';
+    delBtn.textContent = '\u00D7';
+    delBtn.title = 'Delete section';
+    delBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (ChartState.sections.length > 1) {
+        removeSection(idx);
+      }
+    });
+
     tab.appendChild(label);
     tab.appendChild(info);
     tab.appendChild(ts);
     tab.appendChild(eyeBtn);
+    tab.appendChild(delBtn);
     bar.appendChild(tab);
   });
 
@@ -502,29 +687,74 @@ function renderSectionBar() {
   addBtn.addEventListener('click', () => addSection());
   bar.appendChild(addBtn);
 
-  // Form display
-  const formEl = document.getElementById('form-display');
-  if (formEl) {
-    formEl.textContent = 'Form: ' + ChartState.form.join(' \u2192 ');
-    formEl.onclick = () => {
-      const newForm = prompt('Form (comma separated):', ChartState.form.join(', '));
-      if (newForm) {
-        ChartState.form = newForm.split(',').map(s => s.trim()).filter(Boolean);
-        saveChart();
-        renderSectionBar();
-      }
-    };
-  }
+  // Form chips (D&D reorderable)
+  renderFormChips();
 }
 
 function updateEndingButtons() {
   const section = getCurrentSection();
   const measure = section ? section.measures[ChartState.cursor.measure] : null;
   const ending = measure ? measure.ending : null;
-  const btn1 = document.getElementById('btn-ending-1');
-  const btn2 = document.getElementById('btn-ending-2');
-  if (btn1) btn1.classList.toggle('active', ending === 1);
-  if (btn2) btn2.classList.toggle('active', ending === 2);
+  for (let n = 1; n <= 3; n++) {
+    const btn = document.getElementById('btn-ending-' + n);
+    if (btn) btn.classList.toggle('active', ending === n);
+  }
+}
+
+function updateNavButtons() {
+  const section = getCurrentSection();
+  const measure = section ? section.measures[ChartState.cursor.measure] : null;
+  const nav = measure ? measure.nav || null : null;
+  ['segno', 'coda', 'ds', 'tocoda', 'dc', 'fine'].forEach(type => {
+    const btn = document.getElementById('btn-nav-' + type);
+    if (btn) btn.classList.toggle('active', nav === (type === 'tocoda' ? 'toCoda' : type));
+  });
+}
+
+function setMeasureRepeat(flatIdx, type) {
+  pushUndo();
+  const measure = getMeasureAt(flatIdx);
+  if (!measure) return;
+  if (type === 'start') {
+    measure.repeatStart = !measure.repeatStart;
+  } else if (type === 'end') {
+    measure.repeatEnd = !measure.repeatEnd;
+  }
+  renderChart();
+  saveChart();
+}
+
+function updateRepeatButtons() {
+  const section = getCurrentSection();
+  const measure = section ? section.measures[ChartState.cursor.measure] : null;
+  const btnStart = document.getElementById('btn-repeat-start');
+  const btnEnd = document.getElementById('btn-repeat-end');
+  if (btnStart) btnStart.classList.toggle('active', !!(measure && measure.repeatStart));
+  if (btnEnd) btnEnd.classList.toggle('active', !!(measure && measure.repeatEnd));
+}
+
+function setMeasureNav(flatIdx, navType) {
+  pushUndo();
+  const measure = getMeasureAt(flatIdx);
+  if (!measure) return;
+  measure.nav = (measure.nav === navType) ? null : navType;
+  renderChart();
+  saveChart();
+}
+
+function findNavPosition(navType) {
+  for (let fi = 0; fi < ChartState.form.length; fi++) {
+    const secId = ChartState.form[fi];
+    const secIdx = ChartState.sections.findIndex(s => s.id === secId);
+    if (secIdx < 0) continue;
+    const section = ChartState.sections[secIdx];
+    for (let mi = 0; mi < section.measures.length; mi++) {
+      if (section.measures[mi].nav === navType) {
+        return { formIndex: fi, sectionIndex: secIdx, measure: mi };
+      }
+    }
+  }
+  return null;
 }
 
 // ======== SECTION MANAGEMENT ========
@@ -641,7 +871,7 @@ function setCursorInSection(sectionIndex, measure, beat) {
 
 // ======== CHORD PLACEMENT ========
 
-function placeChord(name) {
+function placeChord(name, voicing = null) {
   const parsed = parseChordName(name);
   if (!parsed) return false;
 
@@ -656,8 +886,8 @@ function placeChord(name) {
   // Calculate MIDI notes
   const midiNotes = chordToMidi(parsed);
 
-  // Place chord
-  const chordObj = { beat, name: parsed.displayName, midiNotes };
+  // Place chord (voicing stored for future Pad panel use)
+  const chordObj = { beat, name: parsed.displayName, midiNotes, voicing: voicing || null };
   m.chords.push(chordObj);
   m.chords.sort((a, b) => a.beat - b.beat);
 
@@ -708,6 +938,9 @@ function togglePlay() {
 function startPlayback() {
   ChartState.playing = true;
   ChartState.lastPlayedChord = null;
+  ChartState.playPass = 1;
+  ChartState.playDSActive = false;
+  ChartState.playRepeatsUsed = new Set();
   resetVoiceLead();
 
   if (ChartState.repeatRange) {
@@ -762,7 +995,10 @@ function playStep() {
     ChartState.playSectionIndex = secIdx;
 
     // Skip non-playable measures (ending mismatch)
-    const occurrence = getFormOccurrence(ChartState.playFormIndex);
+    // After D.S./D.C., repeat signs are ignored: play as 2nd pass (skip ending 1, play ending 2)
+    const hasEndings = sectionHasEndings(section);
+    const occurrence = ChartState.playDSActive ? 2
+      : (hasEndings ? ChartState.playPass : getFormOccurrence(ChartState.playFormIndex));
     while (ChartState.playMeasure < section.measures.length &&
            !shouldPlayMeasure(section.measures[ChartState.playMeasure], occurrence)) {
       ChartState.playMeasure++;
@@ -815,11 +1051,88 @@ function playStep() {
   if (nextBeat >= bpm) {
     nextBeat = 0;
     nextMeasure++;
+
+    // Navigation symbol checks (after finishing a measure)
+    const justPlayed = section.measures[ChartState.playMeasure];
+
+    // D.S.: jump to segno (first time only)
+    if (justPlayed && justPlayed.nav === 'ds' && !ChartState.playDSActive) {
+      const segnoPos = findNavPosition('segno');
+      if (segnoPos) {
+        ChartState.playDSActive = true;
+        ChartState.playFormIndex = segnoPos.formIndex;
+        ChartState.playSectionIndex = segnoPos.sectionIndex;
+        ChartState.playMeasure = segnoPos.measure;
+        ChartState.playBeat = 0;
+        ChartState.playPass = 1;
+        ChartState.lastPlayedChord = null;
+        ChartState.playTimer = setTimeout(playStep, beatMs);
+        return;
+      }
+    }
+
+    // D.C.: jump to beginning (first time only, reuses playDSActive flag)
+    if (justPlayed && justPlayed.nav === 'dc' && !ChartState.playDSActive) {
+      ChartState.playDSActive = true;
+      ChartState.playFormIndex = 0;
+      ChartState.playSectionIndex = getFormSectionIndex(0);
+      ChartState.playMeasure = 0;
+      ChartState.playBeat = 0;
+      ChartState.playPass = 1;
+      ChartState.lastPlayedChord = null;
+      ChartState.playTimer = setTimeout(playStep, beatMs);
+      return;
+    }
+
+    // To Coda: jump to coda (only during D.S./D.C. pass)
+    if (justPlayed && justPlayed.nav === 'toCoda' && ChartState.playDSActive) {
+      const codaPos = findNavPosition('coda');
+      if (codaPos) {
+        ChartState.playFormIndex = codaPos.formIndex;
+        ChartState.playSectionIndex = codaPos.sectionIndex;
+        ChartState.playMeasure = codaPos.measure;
+        ChartState.playBeat = 0;
+        ChartState.playPass = 1;
+        ChartState.lastPlayedChord = null;
+        ChartState.playTimer = setTimeout(playStep, beatMs);
+        return;
+      }
+    }
+
+    // Fine: stop playback (only active after D.S./D.C.)
+    if (justPlayed && justPlayed.nav === 'fine' && ChartState.playDSActive) {
+      ChartState.playTimer = setTimeout(() => stopPlayback(), beatMs);
+      return;
+    }
+
+    // Repeat barline check (ignored after D.S./D.C.)
+    if (justPlayed && justPlayed.repeatEnd && !ChartState.playDSActive) {
+      const flatIdx = sectionToFlat(secIdx, ChartState.playMeasure);
+      if (!ChartState.playRepeatsUsed.has(flatIdx)) {
+        ChartState.playRepeatsUsed.add(flatIdx);
+        // Find corresponding repeat start in same section
+        let repeatStartMeasure = 0; // default: section start
+        for (let mi = ChartState.playMeasure - 1; mi >= 0; mi--) {
+          if (section.measures[mi].repeatStart) {
+            repeatStartMeasure = mi;
+            break;
+          }
+        }
+        ChartState.playMeasure = repeatStartMeasure;
+        ChartState.playBeat = 0;
+        ChartState.playPass++;
+        ChartState.lastPlayedChord = null;
+        ChartState.playTimer = setTimeout(playStep, beatMs);
+        return;
+      }
+    }
   }
 
   if (ChartState.useFormPlayback) {
     let nextFormIdx = ChartState.playFormIndex;
-    const occ = getFormOccurrence(nextFormIdx);
+    const hasEnd = sectionHasEndings(section);
+    const occ = ChartState.playDSActive ? 2
+      : (hasEnd ? ChartState.playPass : getFormOccurrence(nextFormIdx));
 
     // Skip non-playable measures
     while (nextMeasure < section.measures.length &&
@@ -828,15 +1141,30 @@ function playStep() {
     }
 
     if (nextMeasure >= section.measures.length) {
-      nextFormIdx++;
-      nextMeasure = 0;
-      if (nextFormIdx < ChartState.form.length) {
-        const nextSection = getFormSection(nextFormIdx);
-        const nextOcc = getFormOccurrence(nextFormIdx);
-        if (nextSection) {
-          while (nextMeasure < nextSection.measures.length &&
-                 !shouldPlayMeasure(nextSection.measures[nextMeasure], nextOcc)) {
-            nextMeasure++;
+      const maxEnd = getMaxEnding(section);
+      if (hasEnd && ChartState.playPass < maxEnd && !ChartState.playDSActive) {
+        // Implicit repeat: return to section start for next ending (disabled after D.S./D.C.)
+        ChartState.playPass++;
+        nextMeasure = 0;
+        while (nextMeasure < section.measures.length &&
+               !shouldPlayMeasure(section.measures[nextMeasure], ChartState.playPass)) {
+          nextMeasure++;
+        }
+      } else {
+        // Advance to next form entry
+        nextFormIdx++;
+        nextMeasure = 0;
+        ChartState.playPass = 1;
+        if (nextFormIdx < ChartState.form.length) {
+          const nextSection = getFormSection(nextFormIdx);
+          const nextHasEnd = nextSection ? sectionHasEndings(nextSection) : false;
+          const nextOcc = ChartState.playDSActive ? 2
+            : (nextHasEnd ? 1 : getFormOccurrence(nextFormIdx));
+          if (nextSection) {
+            while (nextMeasure < nextSection.measures.length &&
+                   !shouldPlayMeasure(nextSection.measures[nextMeasure], nextOcc)) {
+              nextMeasure++;
+            }
           }
         }
       }
@@ -910,25 +1238,44 @@ function setRepeatRangePoint(flatIdx) {
   renderChart();
 }
 
-function copyRepeatRange() {
+function copyRange() {
   if (!ChartState.repeatRange) return false;
-  pushUndo();
   const { start, end } = ChartState.repeatRange;
-  const rangeLen = end - start + 1;
+  const clipboard = [];
+  for (let i = start; i <= end; i++) {
+    const m = getMeasureAt(i);
+    if (!m) { clipboard.push({ chords: [] }); continue; }
+    clipboard.push({
+      chords: m.chords.map(c => ({
+        beat: c.beat,
+        name: c.name,
+        beats: c.beats || 1,
+        midiNotes: c.midiNotes ? [...c.midiNotes] : [],
+        voicing: c.voicing || null,
+      })),
+    });
+  }
+  ChartState.clipboard = clipboard;
+  return true;
+}
+
+function pasteRange() {
+  if (!ChartState.clipboard || ChartState.clipboard.length === 0) return false;
+  pushUndo();
   const cursorFlat = getCursorFlat();
   const total = getTotalMeasures();
-
-  for (let i = 0; i < rangeLen; i++) {
-    const srcFlat = start + i;
+  for (let i = 0; i < ChartState.clipboard.length; i++) {
     const dstFlat = cursorFlat + i;
     if (dstFlat >= total) break;
-    const src = getMeasureAt(srcFlat);
     const dst = getMeasureAt(dstFlat);
-    if (!src || !dst) continue;
+    if (!dst) continue;
+    const src = ChartState.clipboard[i];
     dst.chords = src.chords.map(c => ({
       beat: c.beat,
       name: c.name,
-      midiNotes: [...c.midiNotes],
+      beats: c.beats || 1,
+      midiNotes: c.midiNotes ? [...c.midiNotes] : [],
+      voicing: c.voicing || null,
     }));
   }
   renderChart();
@@ -939,6 +1286,76 @@ function copyRepeatRange() {
 function clearRepeatRange() {
   ChartState.repeatRange = null;
   renderChart();
+}
+
+// ======== MOUSE DRAG RANGE SELECTION ========
+
+let _dragSelecting = false;
+let _dragSelectStartFlat = -1;
+let _dragSelectMoved = false;
+let _dragStartX = 0;
+let _dragStartY = 0;
+let _longPressTimer = null;
+let _longPressActive = false;
+const DRAG_THRESHOLD = 5;
+const LONG_PRESS_MS = 300;
+
+function startDragSelect(flatIdx) {
+  _dragSelecting = true;
+  _dragSelectStartFlat = flatIdx;
+  _dragSelectMoved = false;
+  document.addEventListener('mousemove', onDragSelectMove);
+  document.addEventListener('mouseup', onDragSelectEnd);
+}
+
+function onDragSelectMove(ev) {
+  if (!_dragSelecting) return;
+  if (!_dragSelectMoved) {
+    const dx = ev.clientX - _dragStartX;
+    const dy = ev.clientY - _dragStartY;
+    if (dx * dx + dy * dy < DRAG_THRESHOLD * DRAG_THRESHOLD) return;
+    _dragSelectMoved = true;
+  }
+  const el = document.elementFromPoint(ev.clientX, ev.clientY);
+  if (!el) return;
+  const measureEl = el.closest('.measure[data-flat]');
+  if (!measureEl) return;
+  const flat = parseInt(measureEl.dataset.flat);
+  const start = Math.min(_dragSelectStartFlat, flat);
+  const end = Math.max(_dragSelectStartFlat, flat);
+  ChartState.repeatRange = { start, end };
+  updateRangeHighlight();
+}
+
+function onDragSelectEnd() {
+  _dragSelecting = false;
+  _longPressActive = false;
+  clearTimeout(_longPressTimer);
+  document.body.style.cursor = '';
+  document.removeEventListener('mousemove', onDragSelectMove);
+  document.removeEventListener('mouseup', onDragSelectEnd);
+  if (!_dragSelectMoved) {
+    ChartState.repeatRange = null;
+    updateRangeHighlight();
+  }
+}
+
+function updateRangeHighlight() {
+  document.querySelectorAll('.beat').forEach(b => {
+    b.classList.remove('in-repeat-range', 'repeat-start', 'repeat-end');
+  });
+  if (!ChartState.repeatRange) return;
+  const { start, end } = ChartState.repeatRange;
+  document.querySelectorAll('.measure[data-flat]').forEach(mEl => {
+    const flat = parseInt(mEl.dataset.flat);
+    if (flat < start || flat > end) return;
+    const beats = mEl.querySelectorAll('.beat');
+    beats.forEach((beatEl, i) => {
+      beatEl.classList.add('in-repeat-range');
+      if (flat === start && i === 0) beatEl.classList.add('repeat-start');
+      if (flat === end && i === beats.length - 1) beatEl.classList.add('repeat-end');
+    });
+  });
 }
 
 // ======== CURSOR ADVANCE ========
@@ -959,6 +1376,24 @@ function advanceCursor() {
 }
 
 function duplicateChord() {
+  // First try: chord at current cursor position
+  const section = getCurrentSection();
+  if (section) {
+    const measure = section.measures[ChartState.cursor.measure];
+    if (measure) {
+      const chord = measure.chords.find(c => c.beat === ChartState.cursor.beat);
+      if (chord) {
+        advanceCursor();
+        const success = placeChord(chord.name);
+        if (success) {
+          advanceCursor();
+          saveChart();
+        }
+        return success;
+      }
+    }
+  }
+  // Fallback: last placed chord
   if (!ChartState.lastPlacedChord) return false;
   const success = placeChord(ChartState.lastPlacedChord.name);
   if (success) {
@@ -1023,4 +1458,114 @@ function loadChart() {
   } catch (_) {
     return false;
   }
+}
+
+// ======== FORM CHIPS (D&D reorderable) ========
+
+function renderFormChips() {
+  const container = document.getElementById('form-chips');
+  if (!container) return;
+  container.innerHTML = '';
+
+  ChartState.form.forEach((sectionId, idx) => {
+    const chip = document.createElement('div');
+    chip.className = 'form-chip';
+    chip.dataset.index = idx;
+
+    const label = document.createElement('span');
+    label.className = 'form-chip-label';
+    label.textContent = sectionId;
+    chip.appendChild(label);
+
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'form-chip-remove';
+    removeBtn.textContent = '\u00D7';
+    removeBtn.title = 'Remove from form';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (ChartState.form.length <= 1) return;
+      ChartState.form.splice(idx, 1);
+      saveChart();
+      renderFormChips();
+    });
+    chip.appendChild(removeBtn);
+
+    container.appendChild(chip);
+  });
+
+  // Init SortableJS on form chips
+  if (typeof Sortable !== 'undefined' && !container._sortable) {
+    container._sortable = new Sortable(container, {
+      animation: 150,
+      ghostClass: 'form-chip-ghost',
+      chosenClass: 'form-chip-chosen',
+      onEnd: (evt) => {
+        const { oldIndex, newIndex } = evt;
+        if (oldIndex === newIndex) return;
+        const item = ChartState.form.splice(oldIndex, 1)[0];
+        ChartState.form.splice(newIndex, 0, item);
+        saveChart();
+        renderFormChips();
+      },
+    });
+  }
+
+  // Form add button + menu
+  const addBtn = document.getElementById('btn-form-add');
+  const menu = document.getElementById('form-add-menu');
+  if (addBtn && menu) {
+    addBtn.onclick = () => {
+      menu.innerHTML = '';
+      ChartState.sections.forEach((sec) => {
+        const item = document.createElement('div');
+        item.className = 'form-add-item';
+        item.textContent = sec.label;
+        item.addEventListener('click', () => {
+          ChartState.form.push(sec.id);
+          saveChart();
+          renderFormChips();
+          menu.classList.remove('open');
+        });
+        menu.appendChild(item);
+      });
+      menu.classList.toggle('open');
+    };
+    // Close menu on outside click
+    document.addEventListener('click', (e) => {
+      if (!addBtn.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.remove('open');
+      }
+    });
+  }
+}
+
+// ======== INLINE EDIT ========
+
+function startInlineEdit(element, currentValue, onSave) {
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'inline-edit-input';
+  input.value = currentValue;
+  input.style.width = Math.max(30, element.offsetWidth + 10) + 'px';
+
+  const originalText = element.textContent;
+  element.textContent = '';
+  element.appendChild(input);
+  input.focus();
+  input.select();
+
+  const finish = () => {
+    const val = input.value.trim();
+    element.textContent = val || originalText;
+    if (val && val !== currentValue) {
+      onSave(val);
+    }
+  };
+
+  input.addEventListener('blur', finish);
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+    if (e.key === 'Escape') { input.value = currentValue; input.blur(); }
+    e.stopPropagation();
+  });
 }

@@ -399,10 +399,18 @@ function handleIncrementalKeydown(e) {
         input.dispatchEvent(new Event('input'));
         IncrementalState.isExtending = false;
       } else if (!input.value && !IncrementalState.isOpen) {
-        // Empty input → cursor movement
         e.preventDefault();
         if (e.shiftKey) {
-          setCursor(getCursorFlat() + 1, 0);
+          // Shift+→: range selection (extend right by 1 measure)
+          const rFlat = getCursorFlat();
+          const rTotal = getTotalMeasures();
+          if (!ChartState.repeatRange) {
+            ChartState.repeatRange = { start: rFlat, end: rFlat };
+          }
+          if (ChartState.repeatRange.end + 1 < rTotal) {
+            ChartState.repeatRange.end++;
+          }
+          renderChart();
         } else {
           advanceCursor();
         }
@@ -410,14 +418,21 @@ function handleIncrementalKeydown(e) {
       break;
 
     case 'ArrowLeft':
-      // Move cursor when input is empty
       if (!input.value && !IncrementalState.isOpen) {
         e.preventDefault();
-        const leftFlat = getCursorFlat();
-        const leftBeat = ChartState.cursor.beat;
         if (e.shiftKey) {
-          setCursor(leftFlat - 1, 0);
+          // Shift+←: range selection (extend left by 1 measure)
+          const lFlat = getCursorFlat();
+          if (!ChartState.repeatRange) {
+            ChartState.repeatRange = { start: lFlat, end: lFlat };
+          }
+          if (ChartState.repeatRange.start > 0) {
+            ChartState.repeatRange.start--;
+          }
+          renderChart();
         } else {
+          const leftFlat = getCursorFlat();
+          const leftBeat = ChartState.cursor.beat;
           const prevBeat = leftBeat - 1;
           if (prevBeat >= 0) {
             setCursor(leftFlat, prevBeat);

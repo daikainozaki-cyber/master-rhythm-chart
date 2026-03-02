@@ -67,6 +67,40 @@ function drawSimile(g, cx, cy) {
   }));
 }
 
+// 2-bar repeat mark: 2 slashes + 2 dots + "2" above, centered at (cx, cy)
+function drawSimile2(g, cx, cy, L) {
+  const slashW = 4, slashH = 14, gap = 7;
+  for (let s = 0; s < 2; s++) {
+    const sx = cx + (s - 0.5) * gap;
+    g.appendChild(svgLine(sx - slashW / 2, cy + slashH / 2, sx + slashW / 2, cy - slashH / 2, {
+      stroke: '#333', 'stroke-width': 3.5, 'stroke-linecap': 'round',
+    }));
+  }
+  g.appendChild(svgEl('circle', { cx: cx - gap - 3, cy: cy - 7, r: 2.5, fill: '#333' }));
+  g.appendChild(svgEl('circle', { cx: cx + gap + 3, cy: cy + 7, r: 2.5, fill: '#333' }));
+  g.appendChild(svgText(cx, -2, '2', {
+    'font-family': L.fontFamily, 'font-size': 13, 'font-weight': '700',
+    'text-anchor': 'middle', fill: '#333',
+  }));
+}
+
+// 4-bar repeat mark: 4 slashes + 2 dots + "4" above, centered at (cx, cy)
+function drawSimile4(g, cx, cy, L) {
+  const slashW = 4, slashH = 14, gap = 6;
+  for (let s = 0; s < 4; s++) {
+    const sx = cx + (s - 1.5) * gap;
+    g.appendChild(svgLine(sx - slashW / 2, cy + slashH / 2, sx + slashW / 2, cy - slashH / 2, {
+      stroke: '#333', 'stroke-width': 3.5, 'stroke-linecap': 'round',
+    }));
+  }
+  g.appendChild(svgEl('circle', { cx: cx - 2.5 * gap, cy: cy - 7, r: 2.5, fill: '#333' }));
+  g.appendChild(svgEl('circle', { cx: cx + 2.5 * gap, cy: cy + 7, r: 2.5, fill: '#333' }));
+  g.appendChild(svgText(cx, -2, '4', {
+    'font-family': L.fontFamily, 'font-size': 13, 'font-weight': '700',
+    'text-anchor': 'middle', fill: '#333',
+  }));
+}
+
 // ======== LAYOUT ========
 
 function calcLayout() {
@@ -113,16 +147,18 @@ function renderScoreView() {
 
   const L = calcLayout();
 
-  // Precompute all section data
-  const repeatCounts = {};
-  ChartState.form.forEach(id => { repeatCounts[id] = (repeatCounts[id] || 0) + 1; });
-
+  // Precompute section data based on Form order
   const allSections = [];
-  ChartState.sections.forEach((section, secIdx) => {
+  const formEntries = ChartState.form.length > 0 ? ChartState.form : ChartState.sections.map(s => s.id);
+  formEntries.forEach((sectionId) => {
+    const secIdx = ChartState.sections.findIndex(s => s.id === sectionId);
+    if (secIdx < 0) return;
+    const section = ChartState.sections[secIdx];
     const endingGroups = getEndingGroups(section.measures);
-    const hasRepeat = (repeatCounts[section.id] || 0) > 1;
+    const hasRepeat = section.measures.some(m => m.repeatStart || m.repeatEnd);
     const scoreLines = buildScoreLines(section.measures, endingGroups, 4);
-    allSections.push({ section, secIdx, scoreLines, hasRepeat, endingGroups });
+    const simileMap = computeSimileMap(section.measures);
+    allSections.push({ section, secIdx, scoreLines, hasRepeat, endingGroups, simileMap });
   });
 
   // Calculate total height
@@ -142,6 +178,11 @@ function renderScoreView() {
     style: 'background: #fff;',
   });
 
+  // Embed @font-face for music symbols in SVG
+  const svgStyle = document.createElementNS(SVG_NS, 'style');
+  svgStyle.textContent = `@font-face { font-family: 'Bravura'; src: url('fonts/Bravura.woff2') format('woff2'); }`;
+  svg.appendChild(svgStyle);
+
   // Title
   drawTitle(svg, L);
 
@@ -150,10 +191,10 @@ function renderScoreView() {
 
   // Score lines
   let y = L.staffStartY;
-  allSections.forEach(({ section, secIdx, scoreLines, hasRepeat }) => {
+  allSections.forEach(({ section, secIdx, scoreLines, hasRepeat, simileMap }) => {
     scoreLines.forEach((sl, lineIdx) => {
       y = drawScoreLine(svg, y, sl, lineIdx, scoreLines.length,
-                        section, secIdx, hasRepeat, L);
+                        section, secIdx, hasRepeat, L, simileMap);
     });
   });
 
@@ -212,25 +253,52 @@ function drawInfo(svg, L) {
 
 // ======== SCORE LINE ========
 
-function drawScoreLine(svg, y, sl, lineIdx, totalLines, section, secIdx, hasRepeat, L) {
+function drawScoreLine(svg, y, sl, lineIdx, totalLines, section, secIdx, hasRepeat, L, simileMap) {
   const g = svgEl('g', { transform: `translate(0, ${y})` });
   const bpm = section.timeSignature.beats;
   const noteValue = section.timeSignature.noteValue;
   const isE2 = sl.isEnding2;
   const measCount = sl.measures.length;
 
+  // Build line-local simile info, validating cross-line boundaries
+  const lineSimile = sl.measures.map((m, mIdx) => {
+    const absIdx = sl.absStart + mIdx;
+    const info = simileMap ? simileMap[absIdx] : null;
+    if (!info) return null;
+    if (info.type === 1) return info;
+    if (info.type === 2) {
+      const groupStart = absIdx - info.pos;
+      const groupEnd = groupStart + 1;
+      if (groupStart >= sl.absStart && groupEnd < sl.absStart + measCount) return info;
+      return null;
+    }
+    if (info.type === 4) {
+      const groupStart = absIdx - info.pos;
+      const groupEnd = groupStart + 3;
+      if (groupStart >= sl.absStart && groupEnd < sl.absStart + measCount) return info;
+      return null;
+    }
+    return null;
+  });
+
   // 1. Margin elements (don't affect measure positions)
-  if (lineIdx === 0 && !isE2) {
-    drawRehearsal(g, 0, section.label, L);
+  // Show rehearsal mark + time sig for first line of every section
+  if (lineIdx === 0) {
+    drawRehearsal(g, 0, section.label || section.id, L);
     drawTimeSig(g, L.staffLeft - L.tsW - 4, bpm, noteValue, L);
   }
 
   // 2. Fixed measure positions (all lines share the same grid)
   const measStartIdx = isE2 ? sl.offset : 0;
+  // Full-width ending2 line (offset=0) behaves like a regular line for barlines
+  const isOffsetE2 = isE2 && sl.offset > 0;
 
-  // 3. Start barline at staffLeft (not for 2nd endings)
-  if (!isE2) {
+  // 3. Start barline at staffLeft (not for offset ending2 lines)
+  const firstMeasRepeatStart = sl.measures[0] && sl.measures[0].repeatStart;
+  if (!isOffsetE2) {
     if (lineIdx === 0 && hasRepeat) {
+      drawBarline(g, L.staffLeft, 0, L.lineH, 'repeat-start');
+    } else if (firstMeasRepeatStart) {
       drawBarline(g, L.staffLeft, 0, L.lineH, 'repeat-start');
     } else if (lineIdx === 0 && secIdx > 0) {
       drawBarline(g, L.staffLeft, 0, L.lineH, 'double');
@@ -241,15 +309,14 @@ function drawScoreLine(svg, y, sl, lineIdx, totalLines, section, secIdx, hasRepe
 
   // 4. Determine left padding for first measure based on start barline type
   let firstMeasPad = 6; // default (single/single-thick)
-  if (!isE2 && lineIdx === 0 && hasRepeat) {
+  if (!isOffsetE2 && (lineIdx === 0 && hasRepeat || firstMeasRepeatStart)) {
     firstMeasPad = 16; // repeat-start: thick + thin + dots extend ~14px
-  } else if (!isE2 && lineIdx === 0 && secIdx > 0) {
+  } else if (!isOffsetE2 && lineIdx === 0 && secIdx > 0) {
     firstMeasPad = 10; // double barline extends ~6px right
   }
 
   // 5. Measures + internal barlines (fixed grid)
   let currentVolta = null;
-  let prevMeasure = null;
 
   sl.measures.forEach((measure, mIdx) => {
     const colIdx = measStartIdx + mIdx;
@@ -259,7 +326,17 @@ function drawScoreLine(svg, y, sl, lineIdx, totalLines, section, secIdx, hasRepe
 
     // Internal barline at column boundary
     if (mIdx > 0 || (isE2 && mIdx === 0)) {
-      drawBarline(g, mx, 0, L.lineH, 'single');
+      const prevM = mIdx > 0 ? sl.measures[mIdx - 1] : null;
+      if (prevM && prevM.repeatEnd && measure.repeatStart) {
+        drawBarline(g, mx, 0, L.lineH, 'repeat-end');
+        drawBarline(g, mx + 6, 0, L.lineH, 'repeat-start');
+      } else if (prevM && prevM.repeatEnd) {
+        drawBarline(g, mx, 0, L.lineH, 'repeat-end');
+      } else if (measure.repeatStart) {
+        drawBarline(g, mx, 0, L.lineH, 'repeat-start');
+      } else {
+        drawBarline(g, mx, 0, L.lineH, 'single');
+      }
     }
 
     // Volta bracket tracking
@@ -277,10 +354,57 @@ function drawScoreLine(svg, y, sl, lineIdx, totalLines, section, secIdx, hasRepe
       }
     }
 
-    // Measure content (first measure gets barline-aware padding)
-    const pad = (mIdx === 0) ? firstMeasPad : 6;
-    drawMeasureContent(g, mx, L.measW, measure, bpm, prevMeasure, L, pad);
-    prevMeasure = measure;
+    // Navigation symbols
+    if (measure.nav === 'segno') {
+      g.appendChild(svgText(mx + 4, 2, '\uE047', {
+        'font-size': '18px', 'font-family': 'Bravura', fill: '#c00',
+      }));
+    }
+    if (measure.nav === 'coda') {
+      g.appendChild(svgText(mx + 4, 2, '\uE048', {
+        'font-size': '18px', 'font-family': 'Bravura', fill: '#c00',
+      }));
+    }
+    if (measure.nav === 'ds') {
+      g.appendChild(svgText(mx + L.measW - 4, L.lineH + 12, 'D.S.', {
+        'font-size': '11px', 'font-style': 'italic', 'text-anchor': 'end', fill: '#c00',
+      }));
+    }
+    if (measure.nav === 'toCoda') {
+      g.appendChild(svgText(mx + L.measW - 4, -4, 'to\uE048', {
+        'font-size': '12px', 'font-family': 'Bravura', 'text-anchor': 'end', fill: '#c00',
+      }));
+    }
+    if (measure.nav === 'dc') {
+      g.appendChild(svgText(mx + L.measW - 4, L.lineH + 12, 'D.C.', {
+        'font-size': '11px', 'font-style': 'italic', 'text-anchor': 'end', fill: '#c00',
+      }));
+    }
+    if (measure.nav === 'fine') {
+      g.appendChild(svgText(mx + L.measW - 4, L.lineH + 12, 'Fine', {
+        'font-size': '11px', 'font-style': 'italic', 'text-anchor': 'end', fill: '#c00',
+      }));
+    }
+
+    // Measure content (barline-aware padding)
+    let pad = (mIdx === 0) ? firstMeasPad : 6;
+    if (mIdx > 0 && measure.repeatStart) pad = 16;
+    drawMeasureContent(g, mx, L.measW, measure, bpm, lineSimile[mIdx], L, pad);
+  });
+
+  // Draw multi-bar simile symbols
+  lineSimile.forEach((info, mIdx) => {
+    if (!info) return;
+    const colIdx = measStartIdx + mIdx;
+    const mx = L.staffLeft + colIdx * L.measW;
+    const cy = L.lineH / 2 + 2;
+
+    if (info.type === 2 && info.pos === 1) {
+      drawSimile2(g, mx, cy, L);
+    }
+    if (info.type === 4 && info.pos === 2) {
+      drawSimile4(g, mx, cy, L);
+    }
   });
 
   // Close final volta if open
@@ -293,7 +417,11 @@ function drawScoreLine(svg, y, sl, lineIdx, totalLines, section, secIdx, hasRepe
   const endX = L.staffLeft + (measStartIdx + measCount) * L.measW;
   const hasEnding1 = sl.measures.some(m => m.ending === 1);
 
-  if (hasEnding1 && hasRepeat) {
+  const lastMeasRepeatEnd = sl.measures[sl.measures.length - 1] &&
+                            sl.measures[sl.measures.length - 1].repeatEnd;
+  if (lastMeasRepeatEnd) {
+    drawBarline(g, endX, 0, L.lineH, 'repeat-end');
+  } else if (hasEnding1 && hasRepeat) {
     drawBarline(g, endX, 0, L.lineH, 'repeat-end');
   } else if (isE2) {
     drawBarline(g, endX, 0, L.lineH, 'final');
@@ -426,22 +554,22 @@ function drawBarline(g, x, y1, y2, type) {
 // ======== VOLTA BRACKET ========
 
 function drawVolta(g, x, w, ending, L) {
-  const bracketY = -2; // above the line
-  const bracketH = 14;
+  const bracketY = -12; // horizontal line above the staff
+  const bracketBottom = 0; // legs reach the top of the staff
 
   // L-shape path: down-left | horizontal top | down-right
-  const d = `M ${x} ${bracketY + bracketH} V ${bracketY} H ${x + w} V ${bracketY + bracketH}`;
+  const d = `M ${x} ${bracketBottom} V ${bracketY} H ${x + w} V ${bracketBottom}`;
   g.appendChild(svgEl('path', {
     d,
     fill: 'none',
     stroke: '#000',
-    'stroke-width': 1.5,
+    'stroke-width': 2,
   }));
 
-  // Label
-  g.appendChild(svgText(x + 4, bracketY + 10, ending + '.', {
+  // Label (inside the bracket, just below the horizontal line)
+  g.appendChild(svgText(x + 5, bracketY + 10, ending + '.', {
     'font-family': L.fontFamily,
-    'font-size': L.voltaLabelSize,
+    'font-size': 13,
     'font-weight': '700',
     fill: '#000',
   }));
@@ -449,13 +577,16 @@ function drawVolta(g, x, w, ending, L) {
 
 // ======== MEASURE CONTENT ========
 
-function drawMeasureContent(g, mx, measW, measure, bpm, prevMeasure, L, leftPad) {
+function drawMeasureContent(g, mx, measW, measure, bpm, simileInfo, L, leftPad) {
   const cy = L.lineH / 2 + 2; // vertical center for text
   const padL = leftPad || 6; // left padding (varies by barline type)
 
-  // Check for repeat symbol (simile mark)
-  if (prevMeasure && measure.chords.length > 0 && svMeasuresEqual(measure, prevMeasure)) {
-    drawSimile(g, mx + measW / 2, cy);
+  // Simile marks (precomputed)
+  if (simileInfo) {
+    if (simileInfo.type === 1) {
+      drawSimile(g, mx + measW / 2, cy);
+    }
+    // type 2 and 4: leave empty (symbol drawn in drawScoreLine)
     return;
   }
 
@@ -533,22 +664,39 @@ function buildScoreLines(measures, endingGroups, mpl) {
   let i = 0;
 
   while (i < measures.length) {
-    const eg2 = endingGroups.find(g => g.ending === 2 && g.start === i);
+    // Check if current measure starts an ending >= 2 (2nd, 3rd, etc.)
+    const egHigher = endingGroups.find(g => g.ending >= 2 && g.start === i);
 
-    if (eg2) {
+    if (egHigher) {
       const eg1 = endingGroups.find(g => g.ending === 1);
       const offset = eg1 ? (eg1.start % mpl) : 0;
 
-      const line = {
-        measures: [],
+      // Split ending group into lines of mpl measures
+      const groupMeasures = [];
+      for (let j = egHigher.start; j <= egHigher.end; j++) {
+        groupMeasures.push(measures[j]);
+      }
+      // First line uses offset, subsequent lines start at column 0
+      let gi = 0;
+      const firstLineCount = Math.min(mpl - offset, groupMeasures.length);
+      lines.push({
+        measures: groupMeasures.slice(0, firstLineCount),
         offset: offset,
         isEnding2: true,
-      };
-      for (let j = eg2.start; j <= eg2.end; j++) {
-        line.measures.push(measures[j]);
+        absStart: egHigher.start,
+      });
+      gi = firstLineCount;
+      while (gi < groupMeasures.length) {
+        const chunk = groupMeasures.slice(gi, gi + mpl);
+        lines.push({
+          measures: chunk,
+          offset: 0,
+          isEnding2: true,
+          absStart: egHigher.start + gi,
+        });
+        gi += mpl;
       }
-      lines.push(line);
-      i = eg2.end + 1;
+      i = egHigher.end + 1;
       continue;
     }
 
@@ -556,10 +704,11 @@ function buildScoreLines(measures, endingGroups, mpl) {
       measures: [],
       offset: 0,
       isEnding2: false,
+      absStart: i,
     };
 
     for (let col = 0; col < mpl && i < measures.length; col++) {
-      if (measures[i].ending === 2) break;
+      if (measures[i].ending >= 2) break;
       line.measures.push(measures[i]);
       i++;
     }
@@ -577,6 +726,52 @@ function svMeasuresEqual(a, b) {
   return a.chords.every((c, i) =>
     c.name === b.chords[i].name && c.beat === b.chords[i].beat
   );
+}
+
+// Compute simile map for a section's measures.
+// Returns array where each entry is null or {type: 1|2|4, pos: 0..N-1}
+// Greedy left-to-right: checks 4-bar first, then 2-bar, then 1-bar.
+function computeSimileMap(measures) {
+  const map = new Array(measures.length).fill(null);
+  let i = 1;
+
+  while (i < measures.length) {
+    if (measures[i].chords.length === 0) { i++; continue; }
+
+    // Try 4-bar repeat
+    if (i >= 4 && i + 3 < measures.length &&
+        !map[i] && !map[i + 1] && !map[i + 2] && !map[i + 3]) {
+      let match = true;
+      for (let j = 0; j < 4; j++) {
+        if (!svMeasuresEqual(measures[i + j], measures[i - 4 + j])) {
+          match = false; break;
+        }
+      }
+      if (match) {
+        for (let j = 0; j < 4; j++) map[i + j] = { type: 4, pos: j };
+        i += 4; continue;
+      }
+    }
+
+    // Try 2-bar repeat
+    if (i >= 2 && i + 1 < measures.length && !map[i] && !map[i + 1]) {
+      if (svMeasuresEqual(measures[i], measures[i - 2]) &&
+          svMeasuresEqual(measures[i + 1], measures[i - 1])) {
+        map[i] = { type: 2, pos: 0 };
+        map[i + 1] = { type: 2, pos: 1 };
+        i += 2; continue;
+      }
+    }
+
+    // Try 1-bar repeat
+    if (!map[i] && svMeasuresEqual(measures[i], measures[i - 1])) {
+      map[i] = { type: 1 };
+    }
+
+    i++;
+  }
+
+  return map;
 }
 
 function svFormatChord(name) {

@@ -64,12 +64,43 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Repeat barline buttons
+  document.getElementById('btn-repeat-start')?.addEventListener('click', () => {
+    setMeasureRepeat(getCursorFlat(), 'start');
+  });
+  document.getElementById('btn-repeat-end')?.addEventListener('click', () => {
+    setMeasureRepeat(getCursorFlat(), 'end');
+  });
+
   // Ending buttons
   document.getElementById('btn-ending-1')?.addEventListener('click', () => {
     setMeasureEnding(getCursorFlat(), 1);
   });
   document.getElementById('btn-ending-2')?.addEventListener('click', () => {
     setMeasureEnding(getCursorFlat(), 2);
+  });
+  document.getElementById('btn-ending-3')?.addEventListener('click', () => {
+    setMeasureEnding(getCursorFlat(), 3);
+  });
+
+  // Navigation buttons
+  document.getElementById('btn-nav-segno')?.addEventListener('click', () => {
+    setMeasureNav(getCursorFlat(), 'segno');
+  });
+  document.getElementById('btn-nav-coda')?.addEventListener('click', () => {
+    setMeasureNav(getCursorFlat(), 'coda');
+  });
+  document.getElementById('btn-nav-ds')?.addEventListener('click', () => {
+    setMeasureNav(getCursorFlat(), 'ds');
+  });
+  document.getElementById('btn-nav-tocoda')?.addEventListener('click', () => {
+    setMeasureNav(getCursorFlat(), 'toCoda');
+  });
+  document.getElementById('btn-nav-dc')?.addEventListener('click', () => {
+    setMeasureNav(getCursorFlat(), 'dc');
+  });
+  document.getElementById('btn-nav-fine')?.addEventListener('click', () => {
+    setMeasureNav(getCursorFlat(), 'fine');
   });
 
   // Initialize builder (includes incremental init)
@@ -137,8 +168,44 @@ function handleKeydown(e) {
     return;
   }
 
-  // Incremental input handles its own keys — let it through
-  if (inIncremental) return;
+  // Cmd+D / Ctrl+D: Duplicate (works even in incremental)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
+    e.preventDefault();
+    duplicateChord();
+    return;
+  }
+
+  // Cmd+C: Copy range (works even in incremental)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+    if (ChartState.repeatRange) {
+      e.preventDefault();
+      copyRange();
+      return;
+    }
+    // No range selected → let browser handle normal copy
+  }
+
+  // Cmd+V: Paste range (works even in incremental)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'v') {
+    if (ChartState.clipboard) {
+      e.preventDefault();
+      pasteRange();
+      return;
+    }
+    // No clipboard → let browser handle normal paste
+  }
+
+  // Delete / BS: route to grid when incremental input is empty
+  if (inIncremental && (e.key === 'Delete' || e.key === 'Backspace')) {
+    if (!incInput.value) {
+      e.preventDefault();
+      // Fall through to grid key handler below
+    } else {
+      return; // let input handle its own BS/Delete
+    }
+  } else if (inIncremental) {
+    return; // other keys → let incremental handle
+  }
 
   // Always handle Space for play/stop (unless in other input)
   if (e.key === ' ' && !inAnyInput) {
@@ -148,7 +215,8 @@ function handleKeydown(e) {
   }
 
   // Don't handle when in other inputs (title, tempo, key select)
-  if (inAnyInput) return;
+  // Exception: Delete/BS from empty incremental input already passed through above
+  if (inAnyInput && !inIncremental) return;
 
   // ? = Help modal toggle
   if (e.key === '?' || (e.shiftKey && e.key === '/')) {
@@ -169,19 +237,6 @@ function handleKeydown(e) {
     return;
   }
 
-  // Cmd+D / Ctrl+D: Duplicate (same as repeat)
-  if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
-    e.preventDefault();
-    duplicateChord();
-    return;
-  }
-
-  // Ctrl+R: Copy repeat range
-  if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
-    e.preventDefault();
-    copyRepeatRange();
-    return;
-  }
 
   const measuresPerLine = ChartState.measuresPerLine;
   const totalMeasures = getTotalMeasures();
@@ -273,14 +328,14 @@ function handleKeydown(e) {
         clearRepeatRange();
         saveChart();
       } else {
-        // BS = 消して1拍戻る
-        removeChord();
+        // BS = 1拍戻ってから消す（テキスト編集と同じ）
         const prevBeatBS = beat - 1;
         if (prevBeatBS >= 0) {
           setCursor(curFlat, prevBeatBS);
         } else if (curFlat > 0) {
           setCursor(curFlat - 1, getBeatsPerMeasureAt(curFlat - 1) - 1);
         }
+        removeChord();
         saveChart();
       }
       break;

@@ -58,6 +58,56 @@ function parseChordName(input) {
       break;
     }
   }
+
+  // 4b. Fallback: compound tension like "m7(9,11)" or "7(b9,#11)"
+  if (matchedKey === null) {
+    const parenMatch = qualityStr.match(/^(.*?)\(([^)]+)\)$/);
+    if (parenMatch) {
+      const baseQ = parenMatch[1];
+      const tensionStr = parenMatch[2];
+      if (QUALITY_INTERVALS[baseQ] !== undefined) {
+        const TENSION_MAP = {
+          '9': 14, 'b9': 13, '#9': 15,
+          '11': 17, '#11': 18,
+          '13': 21, 'b13': 20,
+          '#5': 8, 'b5': 6,
+        };
+        const baseIntervals = [...QUALITY_INTERVALS[baseQ]];
+        const tensions = tensionStr.split(',').map(s => s.trim());
+        let valid = true;
+        for (const t of tensions) {
+          const iv = TENSION_MAP[t];
+          if (iv === undefined) { valid = false; break; }
+          if (t === 'b5' || t === '#5') {
+            const idx = baseIntervals.indexOf(7);
+            if (idx >= 0) baseIntervals[idx] = iv;
+            else if (!baseIntervals.includes(iv)) baseIntervals.push(iv);
+          } else {
+            if (!baseIntervals.includes(iv)) baseIntervals.push(iv);
+          }
+        }
+        if (valid) {
+          baseIntervals.sort((a, b) => a - b);
+          const rootName = mainPart.slice(0, rootResult.len);
+          const displayQuality = (typeof QUALITY_DISPLAY !== 'undefined' && QUALITY_DISPLAY[baseQ])
+            ? QUALITY_DISPLAY[baseQ] : baseQ;
+          let displayName = rootName + displayQuality + '(' + tensions.join(',') + ')';
+          if (bass !== null) {
+            const bassStr2 = input.slice(input.lastIndexOf('/') + 1);
+            displayName += '/' + bassStr2[0].toUpperCase() + bassStr2.slice(1);
+          }
+          return {
+            root: rootResult.pc,
+            quality: qualityStr,
+            intervals: baseIntervals,
+            bass,
+            displayName,
+          };
+        }
+      }
+    }
+  }
+
   if (matchedKey === null) return null;
 
   const intervals = QUALITY_INTERVALS[matchedKey];
@@ -121,46 +171,163 @@ function nearestMidi(pc, target) {
   return best;
 }
 
-// Voice-led voicing: compact cluster, voices near previous center
-// Omits perfect 5th when chord has 5+ notes (tension chords)
+// Voice-led voicing: omit root+5th for tension chords (5+ notes),
+// spread voices with minimum 2-semitone gap, always add bass
 function getVoiceLeadVoicing(parsed) {
   if (!parsed) return [];
   const { root, intervals, bass } = parsed;
 
-  // Omit perfect 5th for 5+ note chords
+  const origLen = intervals.length;
   let ivs = [...intervals];
-  if (ivs.length >= 5) {
-    ivs = ivs.filter(iv => iv !== 7);
+
+  // Omit root + perfect 5th for 5+ note chords (tension chords only)
+  if (origLen >= 5) {
+    ivs = ivs.filter(iv => iv !== 0); // root omitted (bass handles it)
+    ivs = ivs.filter(iv => iv !== 7); // perfect 5th omitted
   }
 
   // All pitch classes from intervals
   const pcs = ivs.map(iv => (root + iv) % 12);
 
-  // Center from previous voicing or A3 area (sweet spot for Rhodes/EP)
+  // Center from previous voicing or Middle C (C4 = 60)
   let center;
   if (_vlPrev && _vlPrev.length > 0) {
     center = _vlPrev.reduce((s, m) => s + m, 0) / _vlPrev.length;
   } else {
-    center = 57;
+    center = 60;
   }
 
-  // Place each voice nearest to center — compact cluster
+  // Place each voice nearest to center
   let midi = pcs.map(pc => nearestMidi(pc, center));
   midi.sort((a, b) => a - b);
 
-  // Slash chord: place bass note below the voicing
-  if (bass !== null) {
-    let bassMidi = nearestMidi(bass, center);
-    while (bassMidi >= midi[0]) bassMidi -= 12;
-    if (bassMidi < 36) bassMidi += 12;
-    midi = [bassMidi, ...midi];
+  // Spread voicing: ensure minimum 2 semitone gap (re-sort after each push)
+  let changed = true;
+  while (changed) {
+    changed = false;
+    midi.sort((a, b) => a - b);
+    for (let i = 1; i < midi.length; i++) {
+      if (midi[i] - midi[i - 1] < 2) {
+        midi[i] += 12;
+        changed = true;
+        break;
+      }
+    }
   }
 
-  // Clamp to playable range
-  midi = midi.filter(m => m >= 36 && m <= 78);
+  // Save voicing WITHOUT bass for voice leading (bass pulls center down)
+  _vlPrev = [...midi];
 
-  _vlPrev = midi;
+  // Always add bass note (slash chord uses explicit bass, others use root)
+  const bassPc = (bass !== null) ? bass : root;
+  let bassMidi = 48 + bassPc; // C3 octave base
+  while (bassMidi >= midi[0]) bassMidi -= 12;
+  if (bassMidi < 36) bassMidi += 12; // floor C2
+  midi = [bassMidi, ...midi];
+
+  // Clamp to playable range
+  midi = midi.filter(m => m >= 36 && m <= 84);
+
   return midi;
+}
+
+// ======== PCS-BASED BUILDER FUNCTIONS (synced with 64 Pad Explorer) ========
+
+const FLAT_MAJOR_KEYS = new Set([1, 3, 5, 6, 8, 10]); // Db, Eb, F, Gb, Ab, Bb
+
+// Enharmonic-aware note name using current key context
+function builderPcName(pc) {
+  let refKey = ChartState.key;
+  if (ChartState.scaleType === 'minor') {
+    refKey = (ChartState.key + 3) % 12; // relative major
+  }
+  return FLAT_MAJOR_KEYS.has(refKey) ? NOTE_NAMES_FLAT[pc] : NOTE_NAMES_SHARP[pc];
+}
+
+// Apply tension modifications to a base PCS
+function applyTension(basePCS, mods) {
+  let pcs = [...basePCS];
+  if (mods.replace3 !== undefined) {
+    pcs = pcs.filter(p => p !== 3 && p !== 4);
+    if (!pcs.includes(mods.replace3)) pcs.push(mods.replace3);
+  }
+  if (mods.sharp5) {
+    const i = pcs.indexOf(7);
+    if (i >= 0) pcs[i] = 8;
+    else if (!pcs.includes(8)) pcs.push(8);
+  }
+  if (mods.flat5) {
+    const i = pcs.indexOf(7);
+    if (i >= 0) pcs[i] = 6;
+    else if (!pcs.includes(6)) pcs.push(6);
+  }
+  if (mods.add) {
+    for (const pc of mods.add) {
+      if (!pcs.some(p => p % 12 === pc)) pcs.push(pc + 12);
+    }
+  }
+  if (mods.omit3) { pcs = pcs.filter(p => p !== 3 && p !== 4); }
+  if (mods.omit5) { pcs = pcs.filter(p => p !== 6 && p !== 7 && p !== 8); }
+  return pcs.sort((a, b) => a - b);
+}
+
+// Get active PCS from BuilderState
+function getBuilderPCS() {
+  if (BuilderState.root === null || !BuilderState.quality) return null;
+  let pcs = [...BuilderState.quality.pcs];
+  if (BuilderState.tension) pcs = applyTension(pcs, BuilderState.tension.mods);
+  return pcs;
+}
+
+// Generate chord name string from BuilderState
+function getBuilderChordName() {
+  if (BuilderState.root === null) return '';
+  let name = builderPcName(BuilderState.root);
+  if (BuilderState.quality) name += BuilderState.quality.name;
+  if (BuilderState.tension) {
+    let tl = BuilderState.tension.label.replaceAll(')\n(', ',').replace(/\n/g, '');
+    // In 7th chord context, b5 → #11 (tension notation)
+    const has7th = BuilderState.quality && (
+      BuilderState.quality.pcs.includes(10) || BuilderState.quality.pcs.includes(11) ||
+      (BuilderState.quality.pcs.includes(9) && BuilderState.quality.pcs.includes(6))
+    );
+    if (has7th) {
+      if (tl === 'b5') {
+        tl = '#11';
+      } else if (tl.startsWith('b5(') || tl.startsWith('b5,')) {
+        const inner = tl.slice(2).replace(/[()]/g, '');
+        const parts = inner.split(',').map(s => s.trim()).filter(Boolean);
+        parts.push('#11');
+        const ORDER = {'b9':1,'#9':2,'9':3,'11':4,'#11':5,'b13':6,'13':7};
+        parts.sort((a, b) => (ORDER[a] || 99) - (ORDER[b] || 99));
+        tl = parts.join(',');
+      }
+    }
+    // aug → (#5) on non-Maj qualities
+    if (BuilderState.quality && BuilderState.quality.name !== '') {
+      if (tl === 'aug') {
+        tl = '(#5)';
+      } else if (tl.startsWith('aug(')) {
+        const inner = tl.slice(4, -1);
+        const parts = inner.split(',').map(s => s.trim()).filter(Boolean);
+        parts.push('#5');
+        const ORDER = {'#5':0,'b9':1,'#9':2,'9':3,'11':4,'#11':5,'b13':6,'13':7};
+        parts.sort((a, b) => (ORDER[a] || 99) - (ORDER[b] || 99));
+        tl = '(' + parts.join(',') + ')';
+      }
+    }
+    const noWrap = tl.startsWith('(') || tl.startsWith('sus') || tl.startsWith('aug') ||
+                   tl.startsWith('add') || tl.startsWith('b5') || tl.startsWith('6');
+    if (noWrap) {
+      name += tl;
+    } else {
+      name += '(' + tl + ')';
+    }
+  }
+  if (BuilderState.bass !== null) {
+    name += '/' + builderPcName(BuilderState.bass);
+  }
+  return name;
 }
 
 // Generate diatonic chords for a given key and scale type
