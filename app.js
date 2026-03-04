@@ -195,6 +195,39 @@ function handleKeydown(e) {
     // No clipboard → let browser handle normal paste
   }
 
+  // Home / End: jump to start / end of chart
+  if (e.key === 'Home' || e.key === 'End') {
+    if (!inAnyInput || inIncremental) {
+      e.preventDefault();
+      if (e.key === 'Home') {
+        setCursor(0, 0);
+      } else {
+        setCursor(getTotalMeasures() - 1, 0);
+      }
+      return;
+    }
+  }
+
+  // Tab / Shift+Tab: move by 1 measure (when incremental is empty or not in input)
+  if (e.key === 'Tab') {
+    // Let incremental Tab-complete handle it if dropdown is open
+    if (inIncremental && IncrementalState.isOpen && IncrementalState.candidates.length > 0) {
+      return;
+    }
+    // Otherwise: measure navigation
+    if (!inAnyInput || inIncremental) {
+      e.preventDefault();
+      const curFlat = getCursorFlat();
+      const totalMeasures = getTotalMeasures();
+      if (e.shiftKey) {
+        if (curFlat > 0) setCursor(curFlat - 1, 0);
+      } else {
+        if (curFlat + 1 < totalMeasures) setCursor(curFlat + 1, 0);
+      }
+      return;
+    }
+  }
+
   // Delete / BS: route to grid when incremental input is empty
   if (inIncremental && (e.key === 'Delete' || e.key === 'Backspace')) {
     if (!incInput.value) {

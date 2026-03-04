@@ -40,6 +40,7 @@
         <option value="minor">Minor</option>
       </select>
       <button id="btn-play" class="btn-play">&#9654; Play</button>
+      <button id="btn-mute" class="btn-mute" onclick="toggleMute()">Mute</button>
       <select id="click-select" class="click-select">
         <option value="all">Click: All</option>
         <option value="24">Click: 2,4</option>
@@ -57,6 +58,29 @@
       <button class="help-btn" onclick="document.getElementById('help-overlay').classList.add('active')">?</button>
     </div>
   </header>
+
+  <!-- File Toolbar -->
+  <div class="file-toolbar">
+    <div class="file-group">
+      <span class="file-group-label">Browser</span>
+      <button class="file-btn file-btn-primary" onclick="browserSave()">Save</button>
+      <button class="file-btn" onclick="openBrowserModal()">Load</button>
+    </div>
+    <div class="file-group">
+      <span class="file-group-label">File</span>
+      <button class="file-btn" onclick="exportMRC()">.mrc</button>
+      <button class="file-btn" onclick="importMRC()">Open</button>
+    </div>
+    <div class="file-group">
+      <span class="file-group-label">Export</span>
+      <button class="file-btn" onclick="exportMidi()">MIDI</button>
+    </div>
+    <div class="file-group">
+      <span class="file-group-label">Import</span>
+      <button class="file-btn" onclick="importMidi()">MIDI</button>
+      <button class="file-btn" onclick="importClvz()">.clvz</button>
+    </div>
+  </div>
 
   <!-- Section Bar (collapsible) -->
   <div class="section-bar-container">
@@ -178,6 +202,8 @@
     <!-- Shortcuts -->
     <div class="shortcuts">
       <kbd>&#8592;</kbd><kbd>&#8594;</kbd> beat
+      <kbd>Tab</kbd><kbd>Shift+Tab</kbd> bar
+      <kbd>Home</kbd><kbd>End</kbd> start/end
       <kbd>Shift+&#8592;</kbd><kbd>&#8594;</kbd> select
       <kbd>&#8593;</kbd><kbd>&#8595;</kbd> line
       <kbd>Space</kbd> play
@@ -215,6 +241,8 @@
       <h3>移動</h3>
       <ul>
         <li><kbd>&#8592;</kbd><kbd>&#8594;</kbd> 1拍移動</li>
+        <li><kbd>Tab</kbd> 次の小節 / <kbd>Shift+Tab</kbd> 前の小節</li>
+        <li><kbd>Home</kbd> 曲の先頭 / <kbd>End</kbd> 曲の末尾</li>
         <li><kbd>&#8593;</kbd><kbd>&#8595;</kbd> ライン移動</li>
         <li>コードをクリック → 編集モード</li>
       </ul>
@@ -250,6 +278,17 @@
     </div>
   </div>
 
+  <!-- Browser Storage Modal -->
+  <div class="help-overlay" id="browser-storage-overlay"
+       onclick="if(event.target===this)_closeBrowserModal()">
+    <div class="help-modal browser-storage-modal">
+      <h2>Saved Charts</h2>
+      <div id="browser-storage-list" class="browser-storage-list"></div>
+      <button class="close-btn" onclick="_closeBrowserModal()">閉じる</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.6/Sortable.min.js"></script>
   <script src="https://surikov.github.io/webaudiofont/npm/dist/WebAudioFontPlayer.js"></script>
   <script src="https://surikov.github.io/webaudiofontdata/sound/0040_FluidR3_GM_sf2_file.js"></script>
@@ -259,7 +298,8 @@
   <script src="data.js?v=0.10.1"></script>
   <script src="theory.js?v=0.10.2"></script>
   <script src="audio.js?v=0.10.1"></script>
-  <script src="chart.js?v=0.10.1"></script>
+  <script src="chart.js?v=0.11.0"></script>
+  <script src="fileio.js?v=0.1.0"></script>
   <script src="scoreview.js?v=0.10.1"></script>
   <script src="incremental.js?v=0.10.2"></script>
   <script src="builder.js?v=0.10.1"></script>

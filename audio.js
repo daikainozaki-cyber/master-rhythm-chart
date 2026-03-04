@@ -19,6 +19,7 @@ const PRESETS = {
 const AudioState = {
   presetKey: 'Rhodes 1',
   instrument: null,
+  muted: false,
 };
 
 // --- Active voices ---
@@ -115,6 +116,7 @@ function noteOff(midi) {
 
 function playChordAudio(midiNotes) {
   stopAllAudio();
+  if (AudioState.muted) return;
   midiNotes.forEach(m => noteOn(m));
 }
 
@@ -126,8 +128,19 @@ function stopAllAudio() {
 }
 
 function playChordStab(midiNotes, durationMs) {
+  if (AudioState.muted) return;
   playChordAudio(midiNotes);
   setTimeout(stopAllAudio, durationMs || 800);
+}
+
+function toggleMute() {
+  AudioState.muted = !AudioState.muted;
+  const btn = document.getElementById('btn-mute');
+  if (btn) {
+    btn.textContent = AudioState.muted ? 'Muted' : 'Mute';
+    btn.classList.toggle('active', AudioState.muted);
+  }
+  if (AudioState.muted) stopAllAudio();
 }
 
 // ======== CLICK / METRONOME ========

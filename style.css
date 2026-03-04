@@ -37,7 +37,7 @@
   --diatonic: #66bb6a;
   --diatonic-dim: rgba(102, 187, 106, 0.15);
   --repeat-range: #ff9800;
-  --repeat-range-bg: rgba(255, 152, 0, 0.1);
+  --repeat-range-bg: rgba(255, 152, 0, 0.25);
   --memory-bg: #2a2a4a;
   --sidebar-width: 380px;
 }
@@ -143,6 +143,7 @@ header {
 }
 
 .btn-play,
+.btn-mute,
 .btn-clear {
   padding: 6px 16px;
   border: 1px solid var(--border);
@@ -155,6 +156,7 @@ header {
 }
 
 .btn-play:hover,
+.btn-mute:hover,
 .btn-clear:hover {
   background: var(--surface-hover);
   border-color: var(--accent);
@@ -164,6 +166,12 @@ header {
   background: var(--chart-playing);
   color: #000;
   border-color: var(--chart-playing);
+}
+
+.btn-mute.active {
+  background: var(--repeat-range);
+  color: #000;
+  border-color: var(--repeat-range);
 }
 
 /* Help button in header */
@@ -187,6 +195,139 @@ header {
   background: var(--surface-hover);
   border-color: var(--accent);
   color: var(--text);
+}
+
+/* ======== FILE TOOLBAR ======== */
+
+.file-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.file-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.file-group-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-right: 2px;
+}
+
+.file-btn {
+  padding: 3px 10px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.file-btn:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.file-btn-primary {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.file-btn-primary:hover {
+  background: var(--accent);
+  color: #000;
+}
+
+/* Browser Storage Modal */
+.browser-storage-modal {
+  max-width: 450px;
+}
+
+.browser-storage-list {
+  max-height: 50vh;
+  overflow-y: auto;
+  margin: 12px 0;
+}
+
+.browser-storage-empty {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 24px 0;
+}
+
+.browser-storage-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+}
+
+.browser-storage-item:last-child {
+  border-bottom: none;
+}
+
+.browser-storage-item:hover {
+  background: var(--surface-hover);
+}
+
+.browser-storage-item-info {
+  flex: 1;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.browser-storage-item-title {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.browser-storage-item-date {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+
+.browser-storage-item-del {
+  width: 28px;
+  height: 28px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.browser-storage-item-del:hover {
+  background: rgba(239, 83, 80, 0.15);
+  border-color: var(--error);
+  color: var(--error);
 }
 
 /* ======== SECTION BAR ======== */
@@ -1037,7 +1178,7 @@ footer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 3px 2px;
+  padding: 6px 4px;
   background: var(--memory-bg);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -1049,6 +1190,12 @@ footer {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.memory-btn.just-recalled {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+  box-shadow: 0 0 6px rgba(74, 158, 255, 0.4);
 }
 
 .memory-num {
@@ -1524,6 +1671,7 @@ footer {
 /* ======== SCORE FULLSCREEN ======== */
 
 body.score-fullscreen header,
+body.score-fullscreen .file-toolbar,
 body.score-fullscreen .section-bar-container,
 body.score-fullscreen footer {
   display: none;
@@ -1557,7 +1705,7 @@ body.score-fullscreen .score-view svg {
     padding: 0;
   }
 
-  header, footer, .section-bar-container,
+  header, footer, .file-toolbar, .section-bar-container,
   .help-overlay, .chart-grid {
     display: none !important;
   }

@@ -341,43 +341,7 @@ function handleIncrementalKeydown(e) {
       }
       break;
 
-    case 'Backspace':
-      if (!input.value && !IncrementalState.isOpen) {
-        e.preventDefault();
-        // BS = 戻りながら消す（テキストエディタ的）
-        const bsFlat = getCursorFlat();
-        const bsB = ChartState.cursor.beat;
-        // まず現在位置のコードを消す
-        removeChord();
-        // 1拍戻る
-        const prevB = bsB - 1;
-        if (prevB >= 0) {
-          setCursor(bsFlat, prevB);
-        } else if (bsFlat > 0) {
-          setCursor(bsFlat - 1, getBeatsPerMeasureAt(bsFlat - 1) - 1);
-        }
-        saveChart();
-      }
-      break;
-
-    case 'Delete':
-      if (!input.value && !IncrementalState.isOpen) {
-        e.preventDefault();
-        if (ChartState.repeatRange) {
-          pushUndo();
-          const { start: rStart, end: rEnd } = ChartState.repeatRange;
-          for (let rm = rStart; rm <= rEnd; rm++) {
-            const m = getMeasureAt(rm);
-            if (m) m.chords = [];
-          }
-          clearRepeatRange();
-          saveChart();
-        } else {
-          removeChord();
-          saveChart();
-        }
-      }
-      break;
+    // Backspace/Delete: handled by global handler in app.js (falls through when input empty)
 
     case 'ArrowRight':
       if (input.value && IncrementalState.isOpen && !IncrementalState.isExtending) {

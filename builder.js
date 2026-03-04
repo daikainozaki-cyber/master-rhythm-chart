@@ -713,6 +713,15 @@ function recallMemorySlot(idx) {
   if (success) {
     advanceCursor();
     saveChart();
+    // Visual feedback: flash the recalled slot
+    const container = document.getElementById('memory-bar');
+    if (container) {
+      const btn = container.children[idx];
+      if (btn) {
+        btn.classList.add('just-recalled');
+        setTimeout(() => btn.classList.remove('just-recalled'), 500);
+      }
+    }
   }
 }
 

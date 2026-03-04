@@ -1421,40 +1421,44 @@ function saveChart() {
   } catch (_) {}
 }
 
+// Shared entry point for all importers (fileio.js uses this)
+function loadChartFromData(data) {
+  if (data.title !== undefined) ChartState.title = data.title;
+  if (data.tempo) ChartState.tempo = data.tempo;
+  if (data.key !== undefined) ChartState.key = data.key;
+  if (data.scaleType) ChartState.scaleType = data.scaleType;
+  if (data.use7th !== undefined) ChartState.use7th = data.use7th;
+
+  if (data.version >= 2 && Array.isArray(data.sections)) {
+    ChartState.sections = data.sections;
+    ChartState.form = data.form || ['A'];
+  } else if (Array.isArray(data.measures)) {
+    // v1 → v2 migration: flat array → single section
+    const bpm = data.beatsPerMeasure || 4;
+    ChartState.sections = [{
+      id: 'A',
+      label: 'A',
+      timeSignature: { beats: bpm, noteValue: 4 },
+      measures: data.measures,
+    }];
+    ChartState.form = ['A'];
+    const total = data.totalMeasures || 16;
+    while (ChartState.sections[0].measures.length < total) {
+      ChartState.sections[0].measures.push({ chords: [] });
+    }
+  }
+
+  ChartState.cursor = { sectionIndex: 0, measure: 0, beat: 0 };
+  UndoStack.past = [];
+  UndoStack.future = [];
+  return true;
+}
+
 function loadChart() {
   try {
     const raw = localStorage.getItem('rhythm-chart');
     if (!raw) return false;
-    const data = JSON.parse(raw);
-
-    if (data.title !== undefined) ChartState.title = data.title;
-    if (data.tempo) ChartState.tempo = data.tempo;
-    if (data.key !== undefined) ChartState.key = data.key;
-    if (data.scaleType) ChartState.scaleType = data.scaleType;
-    if (data.use7th !== undefined) ChartState.use7th = data.use7th;
-
-    if (data.version >= 2 && Array.isArray(data.sections)) {
-      // v2: section-based structure
-      ChartState.sections = data.sections;
-      ChartState.form = data.form || ['A'];
-    } else if (Array.isArray(data.measures)) {
-      // v1 → v2 migration: flat array → single section
-      const bpm = data.beatsPerMeasure || 4;
-      ChartState.sections = [{
-        id: 'A',
-        label: 'A',
-        timeSignature: { beats: bpm, noteValue: 4 },
-        measures: data.measures,
-      }];
-      ChartState.form = ['A'];
-      const total = data.totalMeasures || 16;
-      while (ChartState.sections[0].measures.length < total) {
-        ChartState.sections[0].measures.push({ chords: [] });
-      }
-    }
-
-    ChartState.cursor = { sectionIndex: 0, measure: 0, beat: 0 };
-    return true;
+    return loadChartFromData(JSON.parse(raw));
   } catch (_) {
     return false;
   }

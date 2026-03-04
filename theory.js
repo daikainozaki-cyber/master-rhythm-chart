@@ -171,58 +171,55 @@ function nearestMidi(pc, target) {
   return best;
 }
 
-// Voice-led voicing: omit root+5th for tension chords (5+ notes),
-// spread voices with minimum 2-semitone gap, always add bass
+// Voice-led voicing: bass fixed low, upper voices placed nearest to
+// previous chord's center for compact cluster voicing
 function getVoiceLeadVoicing(parsed) {
   if (!parsed) return [];
   const { root, intervals, bass } = parsed;
 
-  const origLen = intervals.length;
   let ivs = [...intervals];
 
-  // Omit root + perfect 5th for 5+ note chords (tension chords only)
-  if (origLen >= 5) {
-    ivs = ivs.filter(iv => iv !== 0); // root omitted (bass handles it)
-    ivs = ivs.filter(iv => iv !== 7); // perfect 5th omitted
+  // Omit perfect 5th for 5+ note chords (tension chords)
+  if (intervals.length >= 5) {
+    ivs = ivs.filter(iv => iv !== 7);
   }
 
-  // All pitch classes from intervals
-  const pcs = ivs.map(iv => (root + iv) % 12);
+  // Upper voice pitch classes (exclude root — bass handles it)
+  const upperIvs = ivs.filter(iv => iv !== 0);
+  const upperPcs = upperIvs.map(iv => (root + iv) % 12);
 
-  // Center from previous voicing or Middle C (C4 = 60)
+  // If no upper voices (power chord etc), just return bass + root
+  if (upperPcs.length === 0) {
+    const bassPc = (bass !== null) ? bass : root;
+    let bassMidi = 36 + bassPc;
+    if (bassMidi < 36) bassMidi += 12;
+    if (bassMidi > 48) bassMidi -= 12;
+    return [bassMidi, 60 + root];
+  }
+
+  // Center from previous voicing, clamped to C4-G4 range
   let center;
   if (_vlPrev && _vlPrev.length > 0) {
     center = _vlPrev.reduce((s, m) => s + m, 0) / _vlPrev.length;
   } else {
-    center = 60;
+    center = 63; // Eb4
   }
+  if (center < 60) center = 60; // floor C4
+  if (center > 67) center = 67; // ceil G4
 
-  // Place each voice nearest to center
-  let midi = pcs.map(pc => nearestMidi(pc, center));
+  // Place each voice nearest to center independently
+  let midi = upperPcs.map(pc => nearestMidi(pc, center));
   midi.sort((a, b) => a - b);
 
-  // Spread voicing: ensure minimum 2 semitone gap (re-sort after each push)
-  let changed = true;
-  while (changed) {
-    changed = false;
-    midi.sort((a, b) => a - b);
-    for (let i = 1; i < midi.length; i++) {
-      if (midi[i] - midi[i - 1] < 2) {
-        midi[i] += 12;
-        changed = true;
-        break;
-      }
-    }
-  }
-
-  // Save voicing WITHOUT bass for voice leading (bass pulls center down)
+  // Save upper voicing for voice leading (without bass)
   _vlPrev = [...midi];
 
-  // Always add bass note (slash chord uses explicit bass, others use root)
+  // Bass note: slash chord uses explicit bass, otherwise root
   const bassPc = (bass !== null) ? bass : root;
-  let bassMidi = 48 + bassPc; // C3 octave base
+  let bassMidi = 36 + bassPc; // C2 octave base
   while (bassMidi >= midi[0]) bassMidi -= 12;
   if (bassMidi < 36) bassMidi += 12; // floor C2
+
   midi = [bassMidi, ...midi];
 
   // Clamp to playable range
