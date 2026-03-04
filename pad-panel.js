@@ -36,13 +36,7 @@ function initPadPanel() {
     }
   });
 
-  // Toggle panel
-  document.getElementById('pad-panel-toggle')?.addEventListener('click', () => {
-    PadPanelState.collapsed = !PadPanelState.collapsed;
-    panel.classList.toggle('collapsed', PadPanelState.collapsed);
-    const ws = document.querySelector('.workspace');
-    if (ws) ws.classList.toggle('pad-collapsed', PadPanelState.collapsed);
-  });
+  // Left panel toggle is handled by toggleLeftPanel() in global scope
 
   // Wrap voicing functions to trigger pad update
   wrapVoicingForPad();
@@ -281,4 +275,23 @@ function selectPadBox(idx) {
     PadPanelState.selectedBoxIdx = null;
   }
   updatePadPanel(true);
+}
+
+// ======== LEFT PANEL TOGGLE ========
+
+function toggleLeftPanel() {
+  const collapsed = document.body.classList.toggle('left-panel-collapsed');
+  PadPanelState.collapsed = collapsed;
+  if (!collapsed) {
+    updatePadPanel(true);
+  }
+  const btn = document.getElementById('btn-toggle-left');
+  if (btn) btn.innerHTML = collapsed ? '&#9654; Panel' : '&#9664; Panel';
+}
+
+// ======== SWAP PAD/BUILDER ORDER ========
+
+function swapLeftPanels() {
+  const wl = document.getElementById('workspace-left');
+  if (wl) wl.classList.toggle('swap');
 }

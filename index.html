@@ -62,6 +62,9 @@
   <!-- File Toolbar -->
   <div class="file-toolbar">
     <div class="file-group">
+      <button id="btn-toggle-left" class="file-btn" onclick="toggleLeftPanel()" title="Toggle left panel">&#9664; Panel</button>
+    </div>
+    <div class="file-group">
       <span class="file-group-label">Browser</span>
       <button class="file-btn file-btn-primary" onclick="browserSave()">Save</button>
       <button class="file-btn" onclick="openBrowserModal()">Load</button>
@@ -123,34 +126,27 @@
   </div>
 
   <div class="workspace">
-    <!-- Pad Panel (64-pad voicing display) -->
-    <div id="pad-panel" class="pad-panel">
-      <div class="pad-panel-header">
-        <button id="pad-panel-toggle" class="pad-panel-toggle" title="Toggle pad panel">&#9664;</button>
-        <span id="pad-chord-name" class="pad-chord-name">—</span>
-        <div class="pad-oct-controls">
-          <button id="pad-oct-down" class="pad-oct-btn" title="Octave down">&#9660;</button>
-          <span id="pad-oct-label" class="pad-oct-label"></span>
-          <button id="pad-oct-up" class="pad-oct-btn" title="Octave up">&#9650;</button>
-        </div>
+    <!-- Left Panel: Pad + Builder -->
+    <div id="workspace-left" class="workspace-left">
+      <div class="workspace-left-toolbar">
+        <button id="btn-left-swap" class="wl-btn" onclick="swapLeftPanels()" title="Swap Pad/Builder">&#8645;</button>
+        <button id="btn-left-close" class="wl-btn" onclick="toggleLeftPanel()" title="Close panel">&#10005;</button>
       </div>
-      <svg id="pad-svg" class="pad-svg"></svg>
-    </div>
 
-    <main>
-      <!-- Memory Slots (16 slots, above grid for D&D downward) -->
-      <div class="memory-section">
-        <div class="memory-header">
-          <span class="section-label">Memory</span>
-          <button id="btn-memory-clear" class="btn-memory-clear" title="Clear all memory" onclick="clearAllMemory()">Clear</button>
+      <!-- Pad Panel (64-pad voicing display) -->
+      <div id="pad-panel" class="pad-panel">
+        <div class="pad-panel-header">
+          <span id="pad-chord-name" class="pad-chord-name">—</span>
+          <div class="pad-oct-controls">
+            <button id="pad-oct-down" class="pad-oct-btn" title="Octave down">&#9660;</button>
+            <span id="pad-oct-label" class="pad-oct-label"></span>
+            <button id="pad-oct-up" class="pad-oct-btn" title="Octave up">&#9650;</button>
+          </div>
         </div>
-        <div id="memory-bar" class="memory-bar"></div>
+        <svg id="pad-svg" class="pad-svg"></svg>
       </div>
-      <div id="chart-grid" class="chart-grid"></div>
-      <div id="score-view" class="score-view" style="display:none"></div>
-    </main>
 
-    <aside id="builder-sidebar" class="builder-sidebar">
+      <aside id="builder-sidebar" class="builder-sidebar">
       <!-- Incremental Chord Input -->
       <div class="incremental-container">
         <input id="incremental-input" type="text" placeholder="C, Cm7, 1-16..."
@@ -210,6 +206,20 @@
         </div>
       </div>
     </aside>
+    </div>
+
+    <main>
+      <!-- Memory Slots (16 slots, above grid for D&D downward) -->
+      <div class="memory-section">
+        <div class="memory-header">
+          <span class="section-label">Memory</span>
+          <button id="btn-memory-clear" class="btn-memory-clear" title="Clear all memory" onclick="clearAllMemory()">Clear</button>
+        </div>
+        <div id="memory-bar" class="memory-bar"></div>
+      </div>
+      <div id="chart-grid" class="chart-grid"></div>
+      <div id="score-view" class="score-view" style="display:none"></div>
+    </main>
   </div>
 
   <footer>
