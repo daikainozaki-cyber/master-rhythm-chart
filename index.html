@@ -123,6 +123,20 @@
   </div>
 
   <div class="workspace">
+    <!-- Pad Panel (64-pad voicing display) -->
+    <div id="pad-panel" class="pad-panel">
+      <div class="pad-panel-header">
+        <button id="pad-panel-toggle" class="pad-panel-toggle" title="Toggle pad panel">&#9664;</button>
+        <span id="pad-chord-name" class="pad-chord-name">—</span>
+        <div class="pad-oct-controls">
+          <button id="pad-oct-down" class="pad-oct-btn" title="Octave down">&#9660;</button>
+          <span id="pad-oct-label" class="pad-oct-label"></span>
+          <button id="pad-oct-up" class="pad-oct-btn" title="Octave up">&#9650;</button>
+        </div>
+      </div>
+      <svg id="pad-svg" class="pad-svg"></svg>
+    </div>
+
     <main>
       <!-- Memory Slots (16 slots, above grid for D&D downward) -->
       <div class="memory-section">
@@ -303,6 +317,8 @@
   <script src="scoreview.js?v=0.10.1"></script>
   <script src="incremental.js?v=0.10.2"></script>
   <script src="builder.js?v=0.10.1"></script>
+  <script src="pad-core.js?v=0.1.0"></script>
+  <script src="pad-panel.js?v=0.1.0"></script>
   <script src="app.js?v=0.10.1"></script>
 
 </body>

@@ -559,6 +559,7 @@ function renderChart() {
   updateEndingButtons();
   updateNavButtons();
   updateRepeatButtons();
+  if (typeof updatePadPanel === 'function') updatePadPanel();
 }
 
 function updateBarsInput() {

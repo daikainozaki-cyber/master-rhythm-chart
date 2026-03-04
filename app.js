@@ -106,6 +106,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Initialize builder (includes incremental init)
   initBuilder();
 
+  // Initialize pad panel
+  if (typeof initPadPanel === 'function') initPadPanel();
+
   // Restore key/scale selects from state
   const keySelect = document.getElementById('key-select');
   if (keySelect) keySelect.value = ChartState.key;

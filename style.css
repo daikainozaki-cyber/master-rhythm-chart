@@ -40,6 +40,7 @@
   --repeat-range-bg: rgba(255, 152, 0, 0.25);
   --memory-bg: #2a2a4a;
   --sidebar-width: 380px;
+  --pad-width: 420px;
 }
 
 * {
@@ -846,14 +847,20 @@ header {
 /* ======== WORKSPACE (Grid + Builder sidebar) ======== */
 
 .workspace {
-  display: flex;
+  display: grid;
+  grid-template-columns: var(--pad-width) 1fr var(--sidebar-width);
+  grid-template-areas: "pad chart builder";
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
+.workspace.pad-collapsed {
+  grid-template-columns: 0 1fr var(--sidebar-width);
+}
+
 main {
-  flex: 1;
+  grid-area: chart;
   min-height: 0;
   padding: 16px;
   display: flex;
@@ -863,12 +870,95 @@ main {
 }
 
 .builder-sidebar {
+  grid-area: builder;
   width: var(--sidebar-width);
-  flex-shrink: 0;
   overflow-y: auto;
   background: var(--surface);
   border-left: 1px solid var(--border);
   padding: 8px;
+}
+
+/* ======== PAD PANEL ======== */
+
+.pad-panel {
+  grid-area: pad;
+  width: var(--pad-width);
+  overflow-y: auto;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  transition: width 0.2s, padding 0.2s, opacity 0.2s;
+}
+
+.pad-panel.collapsed {
+  width: 0;
+  padding: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.pad-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+  min-height: 28px;
+}
+
+.pad-panel-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+.pad-panel-toggle:hover { color: var(--text); border-color: var(--text-muted); }
+
+.pad-chord-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pad-oct-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.pad-oct-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 8px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  line-height: 1;
+}
+.pad-oct-btn:hover { color: var(--text); border-color: var(--text-muted); }
+.pad-oct-btn:disabled { opacity: 0.3; cursor: default; }
+
+.pad-oct-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  min-width: 70px;
+  text-align: center;
+}
+
+.pad-svg {
+  width: 100%;
+  flex-shrink: 0;
 }
 
 .chart-grid {
