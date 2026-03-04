@@ -39,7 +39,8 @@
   --repeat-range: #ff9800;
   --repeat-range-bg: rgba(255, 152, 0, 0.25);
   --memory-bg: #2a2a4a;
-  --left-panel-width: 420px;
+  --left-panel-width: 380px;
+  --right-panel-width: 340px;
 }
 
 * {
@@ -852,18 +853,32 @@ body.left-panel-collapsed .section-bar-container {
 
 .workspace {
   display: grid;
-  grid-template-columns: var(--left-panel-width) 1fr;
+  grid-template-columns: var(--left-panel-width) 1fr var(--right-panel-width);
   flex: 1;
   min-height: 0;
   overflow: hidden;
   transition: grid-template-columns 0.2s;
 }
 
-body.left-panel-collapsed .workspace {
-  grid-template-columns: 0 1fr;
+/* During playback: collapse right panel */
+.workspace.pad-playing {
+  grid-template-columns: var(--left-panel-width) 1fr 0;
+}
+.workspace.pad-playing .builder-sidebar {
+  opacity: 0;
+  pointer-events: none;
 }
 
-/* Left Panel (Pad + Builder stacked) */
+/* Left panel collapsed */
+body.left-panel-collapsed .workspace {
+  grid-template-columns: 0 1fr var(--right-panel-width);
+}
+body.left-panel-collapsed .workspace-left {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Left Panel (Pad) */
 .workspace-left {
   display: flex;
   flex-direction: column;
@@ -871,34 +886,7 @@ body.left-panel-collapsed .workspace {
   overflow: hidden;
   border-right: 1px solid var(--border);
   background: var(--surface);
-  transition: opacity 0.2s;
 }
-
-body.left-panel-collapsed .workspace-left {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.workspace-left-toolbar {
-  display: flex;
-  justify-content: flex-end;
-  gap: 4px;
-  padding: 4px 8px;
-  border-bottom: 1px solid var(--border);
-  flex-shrink: 0;
-}
-
-.wl-btn {
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 2px 8px;
-  border-radius: 4px;
-  line-height: 1.2;
-}
-.wl-btn:hover { color: var(--text); border-color: var(--text-muted); }
 
 main {
   min-height: 0;
@@ -910,33 +898,24 @@ main {
 }
 
 .builder-sidebar {
-  flex: 3;
   min-height: 0;
   overflow-y: auto;
   background: var(--surface);
   padding: 8px;
+  border-left: 1px solid var(--border);
+  transition: opacity 0.2s;
 }
 
 /* ======== PAD PANEL ======== */
 
 .pad-panel {
-  flex: 2;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
   padding: 8px;
   display: flex;
   flex-direction: column;
-  border-bottom: 1px solid var(--border);
 }
-
-/* Swap order: builder first, pad second */
-.workspace-left.swap .workspace-left-toolbar { order: 0; }
-.workspace-left.swap .pad-panel { order: 2; border-bottom: none; border-top: 1px solid var(--border); }
-.workspace-left.swap .builder-sidebar { order: 1; border-bottom: 1px solid var(--border); }
-
-/* During playback: pad takes full height, builder hidden */
-.workspace-left.pad-playing .builder-sidebar { display: none; }
-.workspace-left.pad-playing .pad-panel { flex: 1; border-bottom: none; }
 
 .pad-panel-header {
   display: flex;

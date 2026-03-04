@@ -92,8 +92,8 @@ function wrapVoicingForPad() {
 // On stop: restore normal editing display
 
 function wrapPlaybackForPad() {
-  const wl = document.getElementById('workspace-left');
-  if (!wl) return;
+  const ws = document.getElementById('workspace');
+  if (!ws) return;
 
   // Wrap playChordAudio to capture MIDI notes being played
   const origPlayChord = typeof playChordAudio === 'function' ? playChordAudio : null;
@@ -113,14 +113,14 @@ function wrapPlaybackForPad() {
   if (origStart) {
     window.startPlayback = function() {
       origStart();
-      wl.classList.add('pad-playing');
+      ws.classList.add('pad-playing');
       PadPanelState.collapsed = false;
     };
   }
   if (origStop) {
     window.stopPlayback = function() {
       origStop();
-      wl.classList.remove('pad-playing');
+      ws.classList.remove('pad-playing');
       PadPanelState.playingMidiNotes = null;
       updatePadPanel(true);
     };
@@ -338,11 +338,4 @@ function toggleLeftPanel() {
   }
   const btn = document.getElementById('btn-toggle-left');
   if (btn) btn.innerHTML = collapsed ? '&#9654; Panel' : '&#9664; Panel';
-}
-
-// ======== SWAP PAD/BUILDER ORDER ========
-
-function swapLeftPanels() {
-  const wl = document.getElementById('workspace-left');
-  if (wl) wl.classList.toggle('swap');
 }

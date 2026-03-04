@@ -125,15 +125,9 @@
     </div>
   </div>
 
-  <div class="workspace">
-    <!-- Left Panel: Pad + Builder -->
+  <div id="workspace" class="workspace">
+    <!-- Left Panel: Pad -->
     <div id="workspace-left" class="workspace-left">
-      <div class="workspace-left-toolbar">
-        <button id="btn-left-swap" class="wl-btn" onclick="swapLeftPanels()" title="Swap Pad/Builder">&#8645;</button>
-        <button id="btn-left-close" class="wl-btn" onclick="toggleLeftPanel()" title="Close panel">&#10005;</button>
-      </div>
-
-      <!-- Pad Panel (64-pad voicing display) -->
       <div id="pad-panel" class="pad-panel">
         <div class="pad-panel-header">
           <span id="pad-chord-name" class="pad-chord-name">—</span>
@@ -145,22 +139,32 @@
         </div>
         <svg id="pad-svg" class="pad-svg"></svg>
       </div>
+    </div>
 
-      <aside id="builder-sidebar" class="builder-sidebar">
-      <!-- Incremental Chord Input -->
+    <main>
+      <!-- Memory Slots (16 slots, above grid for D&D downward) -->
+      <div class="memory-section">
+        <div class="memory-header">
+          <span class="section-label">Memory</span>
+          <button id="btn-memory-clear" class="btn-memory-clear" title="Clear all memory" onclick="clearAllMemory()">Clear</button>
+        </div>
+        <div id="memory-bar" class="memory-bar"></div>
+      </div>
+      <div id="chart-grid" class="chart-grid"></div>
+      <div id="score-view" class="score-view" style="display:none"></div>
+    </main>
+
+    <!-- Right Panel: Builder -->
+    <aside id="builder-sidebar" class="builder-sidebar">
       <div class="incremental-container">
         <input id="incremental-input" type="text" placeholder="C, Cm7, 1-16..."
                autocomplete="off" spellcheck="false" autocorrect="off">
         <div id="incremental-dropdown" class="incremental-dropdown"></div>
       </div>
-
-      <!-- Diatonic Bar -->
       <div class="diatonic-section">
         <div id="diatonic-bar" class="diatonic-bar"></div>
         <button id="btn-7th-toggle" class="btn-toggle">Triad</button>
       </div>
-
-      <!-- Chord Display Bar -->
       <div id="chord-display-bar" class="chord-display-bar">
         <span id="chord-display" class="chord-display"></span>
         <button id="btn-slash" class="chord-action-btn" title="Slash chord">/</button>
@@ -168,15 +172,11 @@
         <button id="btn-builder-back" class="chord-action-btn" title="Back to Step 1">Back</button>
         <button id="btn-builder-next" class="chord-action-btn" title="Go to Step 2 (Tension/Voicing)">Next</button>
       </div>
-
       <div id="builder-panel" class="builder-panel">
-        <!-- Step 1: Root (Piano) + Quality -->
         <div id="step1">
           <div id="piano-root" class="piano-keyboard"></div>
           <div id="quality-grid" class="quality-grid"></div>
         </div>
-
-        <!-- Step 2: Tension + Voicing + On-Chord -->
         <div id="step2" style="display:none">
           <div id="tension-grid" class="tension-grid"></div>
           <div class="voicing-bar">
@@ -206,20 +206,6 @@
         </div>
       </div>
     </aside>
-    </div>
-
-    <main>
-      <!-- Memory Slots (16 slots, above grid for D&D downward) -->
-      <div class="memory-section">
-        <div class="memory-header">
-          <span class="section-label">Memory</span>
-          <button id="btn-memory-clear" class="btn-memory-clear" title="Clear all memory" onclick="clearAllMemory()">Clear</button>
-        </div>
-        <div id="memory-bar" class="memory-bar"></div>
-      </div>
-      <div id="chart-grid" class="chart-grid"></div>
-      <div id="score-view" class="score-view" style="display:none"></div>
-    </main>
   </div>
 
   <footer>
