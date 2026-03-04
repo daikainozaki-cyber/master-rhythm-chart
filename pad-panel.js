@@ -10,6 +10,7 @@ const PadPanelState = {
   cycleIndices: {},
   collapsed: false,
   lastChordName: null,  // cache to avoid re-render when chord hasn't changed
+  playingMidiNotes: null, // MIDI notes currently sounding during playback
 };
 
 // ======== INIT ========
@@ -40,6 +41,9 @@ function initPadPanel() {
 
   // Wrap voicing functions to trigger pad update
   wrapVoicingForPad();
+
+  // Wrap playback to auto-show pad during play
+  wrapPlaybackForPad();
 
   // Initial render
   updatePadPanel(true);
@@ -80,6 +84,46 @@ function wrapVoicingForPad() {
   }
   if (origFns.setDrop) {
     window.setDrop = function(drop) { origFns.setDrop(drop); PadPanelState.selectedBoxIdx = null; PadPanelState.cycleIndices = {}; updatePadPanel(true); };
+  }
+}
+
+// ======== PLAYBACK → PAD AUTO-DISPLAY ========
+// During playback: capture playing MIDI notes, show on pad
+// On stop: restore normal editing display
+
+function wrapPlaybackForPad() {
+  const wl = document.getElementById('workspace-left');
+  if (!wl) return;
+
+  // Wrap playChordAudio to capture MIDI notes being played
+  const origPlayChord = typeof playChordAudio === 'function' ? playChordAudio : null;
+  if (origPlayChord) {
+    window.playChordAudio = function(midiNotes) {
+      origPlayChord(midiNotes);
+      if (ChartState.playing) {
+        PadPanelState.playingMidiNotes = midiNotes;
+        updatePadPanel(true);
+      }
+    };
+  }
+
+  const origStart = typeof startPlayback === 'function' ? startPlayback : null;
+  const origStop = typeof stopPlayback === 'function' ? stopPlayback : null;
+
+  if (origStart) {
+    window.startPlayback = function() {
+      origStart();
+      wl.classList.add('pad-playing');
+      PadPanelState.collapsed = false;
+    };
+  }
+  if (origStop) {
+    window.stopPlayback = function() {
+      origStop();
+      wl.classList.remove('pad-playing');
+      PadPanelState.playingMidiNotes = null;
+      updatePadPanel(true);
+    };
   }
 }
 
@@ -218,7 +262,6 @@ function updatePadPanel(force) {
   if (octUp) octUp.disabled = PadPanelState.octaveShift >= 3;
 
   if (!chordName) {
-    // Empty state: render blank grid
     const emptyPCS = new Set();
     padRenderGrid(svg, emptyPCS, 0, null, null, PadPanelState.octaveShift, null);
     return;
@@ -231,7 +274,15 @@ function updatePadPanel(force) {
     return;
   }
 
-  // Compute voicing boxes
+  // === Playback mode: just highlight the MIDI notes being played ===
+  if (ChartState.playing && PadPanelState.playingMidiNotes) {
+    const selBox = { midiNotes: [...PadPanelState.playingMidiNotes] };
+    padRenderGrid(svg, state.activePCS, state.root, state.bass, state.qualityPCS, PadPanelState.octaveShift, selBox);
+    PadPanelState.lastBoxes = [];
+    return;
+  }
+
+  // === Editing mode: voicing boxes (normal) ===
   const maxRS = state.offsets.length <= 3 ? 4 : 5;
   const maxCS = state.offsets.length <= 3 ? 5 : 6;
   const boxes = padComputeBoxes(state.offsets, state.targetPC, PadPanelState.octaveShift, maxRS, maxCS);
