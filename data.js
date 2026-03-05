@@ -2,8 +2,7 @@
 // DATA & CONSTANTS — Rhythm Chart App
 // ========================================
 
-const NOTE_NAMES_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
-const NOTE_NAMES_FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+// NOTE_NAMES_SHARP, NOTE_NAMES_FLAT — from pad-core/data.js
 
 // Root note name → pitch class (0-11)
 const ROOT_TO_PC = {
@@ -122,115 +121,7 @@ const QUALITY_DISPLAY = {
   'M7':  'maj7',
 };
 
-// ========================================
-// BUILDER DATA — Chord Builder UI (PCS-based, synced with 64 Pad Explorer)
-// ========================================
-
-// 4×3 quality grid — matching 64 Pad Explorer
-const BUILDER_QUALITIES = [
-  [{name:'', label:'Maj', pcs:[0,4,7]}, {name:'m', label:'m', pcs:[0,3,7]}, {name:'m7(b5)', label:'m7\u207B\u2075', pcs:[0,3,6,10]}],
-  [{name:'6', label:'6', pcs:[0,4,7,9]}, {name:'m6', label:'m6', pcs:[0,3,7,9]}, {name:'dim', label:'dim', pcs:[0,3,6]}],
-  [{name:'7', label:'7', pcs:[0,4,7,10]}, {name:'m7', label:'m7', pcs:[0,3,7,10]}, {name:'dim7', label:'dim7', pcs:[0,3,6,9]}],
-  [{name:'\u25B37', label:'\u25B37', pcs:[0,4,7,11]}, {name:'m\u25B37', label:'m\u25B37', pcs:[0,3,7,11]}, {name:'aug', label:'aug', pcs:[0,4,8]}],
-];
-
-// 8×8 sparse tension grid — operations-based (from 64 Pad Explorer)
-// Each tension: {label, mods:{add:[], replace3:pc, sharp5:bool, flat5:bool, omit3:bool, omit5:bool}}
-const TENSION_ROWS = [
-  // Row 0
-  [
-    {label:'sus4', mods:{replace3:5}},
-    {label:'aug', mods:{sharp5:true}},
-    {label:'6', mods:{add:[9]}},
-    {label:'9', mods:{add:[2]}},
-    {label:'11', mods:{add:[2,5]}},
-    {label:'13', mods:{add:[9]}},
-    {label:'(9,13)', mods:{add:[2,9]}},
-  ],
-  // Row 1
-  [
-    {label:'add9', mods:{add:[2]}},
-    {label:'b5', mods:{flat5:true}},
-    {label:'6/9', mods:{add:[9,2]}},
-    {label:'b9', mods:{add:[1]}},
-    {label:'#11', mods:{add:[6]}},
-    {label:'b13', mods:{add:[8]}},
-  ],
-  // Row 2
-  [
-    {label:'aug\n(9)', mods:{add:[2], sharp5:true}},
-    {label:'6/9\n(#11)', mods:{add:[6,9,2]}},
-    {label:'#9', mods:{add:[3]}},
-    {label:'(9)\n(11)', mods:{add:[5,2]}},
-    {label:'(11)\n(13)', mods:{add:[9,5]}},
-  ],
-  // Row 3
-  [
-    {label:'sus4\n(9)', mods:{replace3:5, add:[2]}},
-    {label:'b5\n(b9)', mods:{add:[1], flat5:true}},
-    null,
-    null,
-    {label:'(b11)\n(b13)', mods:{add:[8,4]}},
-    null,
-    null,
-    null,
-  ],
-  // Row 4
-  [
-    {label:'sus4\n(b9)', mods:{replace3:5, add:[1]}},
-    {label:'aug\n(b9)', mods:{sharp5:true, add:[1]}},
-    null,
-    {label:'(9)\n(#11)', mods:{add:[6,2]}},
-    {label:'(#11)\n(b13)', mods:{add:[8,6]}},
-    null,
-    null,
-    null,
-  ],
-  // Row 5
-  [
-    {label:'(#9)\n(#11)', mods:{add:[3,6]}},
-    null,
-    {label:'(9)\n(#11)\n(13)', mods:{add:[9,2,6]}},
-    null,
-    null,
-    null,
-    null,
-    null,
-  ],
-  // Row 6
-  [
-    null,
-    {label:'aug\n(#9)', mods:{add:[3], sharp5:true}},
-    {label:'b5\n(#9)', mods:{add:[3], flat5:true}},
-    {label:'(9)\n(b13)', mods:{add:[8,2]}},
-    {label:'(b9)\n(13)', mods:{add:[1,9]}},
-    null,
-    null,
-    null,
-  ],
-  // Row 7
-  [
-    null,
-    null,
-    null,
-    {label:'(b9)\n(b13)', mods:{add:[8,1]}},
-    {label:'(#9)\n(b13)', mods:{add:[3,8]}},
-    null,
-    null,
-    null,
-  ],
-  // Row 8
-  [
-    null,
-    null,
-    null,
-    {label:'(b9)\n(#9)\n(b13)', mods:{add:[8,1,3]}},
-    null,
-    null,
-    null,
-    null,
-  ],
-];
+// BUILDER_QUALITIES, TENSION_ROWS — from pad-core/data.js
 
 // ======== VOICING STATE ========
 const VoicingState = {

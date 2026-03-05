@@ -229,8 +229,7 @@ function getVoiceLeadVoicing(parsed) {
 }
 
 // ======== PCS-BASED BUILDER FUNCTIONS (synced with 64 Pad Explorer) ========
-
-const FLAT_MAJOR_KEYS = new Set([1, 3, 5, 6, 8, 10]); // Db, Eb, F, Gb, Ab, Bb
+// FLAT_MAJOR_KEYS, padApplyTension — from pad-core
 
 // Enharmonic-aware note name using current key context
 function builderPcName(pc) {
@@ -241,31 +240,9 @@ function builderPcName(pc) {
   return FLAT_MAJOR_KEYS.has(refKey) ? NOTE_NAMES_FLAT[pc] : NOTE_NAMES_SHARP[pc];
 }
 
-// Apply tension modifications to a base PCS
+// Apply tension modifications to a base PCS (adapter → pad-core)
 function applyTension(basePCS, mods) {
-  let pcs = [...basePCS];
-  if (mods.replace3 !== undefined) {
-    pcs = pcs.filter(p => p !== 3 && p !== 4);
-    if (!pcs.includes(mods.replace3)) pcs.push(mods.replace3);
-  }
-  if (mods.sharp5) {
-    const i = pcs.indexOf(7);
-    if (i >= 0) pcs[i] = 8;
-    else if (!pcs.includes(8)) pcs.push(8);
-  }
-  if (mods.flat5) {
-    const i = pcs.indexOf(7);
-    if (i >= 0) pcs[i] = 6;
-    else if (!pcs.includes(6)) pcs.push(6);
-  }
-  if (mods.add) {
-    for (const pc of mods.add) {
-      if (!pcs.some(p => p % 12 === pc)) pcs.push(pc + 12);
-    }
-  }
-  if (mods.omit3) { pcs = pcs.filter(p => p !== 3 && p !== 4); }
-  if (mods.omit5) { pcs = pcs.filter(p => p !== 6 && p !== 7 && p !== 8); }
-  return pcs.sort((a, b) => a - b);
+  return padApplyTension(basePCS, mods);
 }
 
 // Get active PCS from BuilderState

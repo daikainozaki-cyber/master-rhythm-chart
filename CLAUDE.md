@@ -558,12 +558,19 @@ HPS専用データ → HPSポータル経由（Cloudflare Access認証）
 
 ## 技術スタック
 
+- **pad-core**: git submodule — 理論計算・データ定義のSSOT
 - **フロントエンド**: HTML/CSS/JS（グローバル関数、ES Module化はPhase 4以降）
 - **D&D**: SortableJS CDN（メモリースロット並べ替え）
 - **音声**: WebAudioFont（Rhodes 1/2, FM EP, Organ）+ Web Audio API（クリック、リバーブ、コンプ）
 - **MIDI**: SMFスクラッチ実装（Export）、自作パーサー（Import）
 - **圧縮**: pako CDN（.clvzインポート用gzip解凍）
 - **ホスティング**: Xserver（murinaikurashi.com）
+
+### 参照ルール（pad-core SSOT）
+- **理論計算の変更はpad-coreで行う。このリポには書かない。**
+- 旧`pad-core.js`は削除済み。pad-core submoduleに置換
+- BUILDER_QUALITIES, TENSION_ROWS, NOTE_NAMES等はpad-core/data.jsから読み込み
+- 読み込み順序: pad-core/*.js → data.js → theory.js → ... → app.js
 
 ## デプロイ
 
